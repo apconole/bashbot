@@ -260,6 +260,14 @@ handler_callback_tochan(){
     elif [ "${1:2}" == "keyword" ]; then
       shift
       run_keyword $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "ticker" ]; then
+      shift
+      [ ! "$1" ] && message_post $CHANNEL "Requires a ticker symbol"
+      TICKERNAME=$(wget -O- "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | grep time_rtq_ticker | cut -d\" -f17 | cut -d"<" -f2 | cut -d">" -f2)
+      TICKERPRICE=$(wget -O- "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | grep time_rtq_ticker | cut -d\" -f27 | cut -d"<" -f1 | cut -d">" -f2)
+
+      message_post $CHANNEL "Ticker [ ${TICKERNAME} ] value [ ${TICKERPRICE} ]"
+      
     else
       message_post $CHANNEL "Channel command [ ${1:2} ] not supported"
     fi
