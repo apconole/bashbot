@@ -103,14 +103,14 @@ EOF
 
 run_keyword(){
   [ ! "$3" ] && message_post $1 "Please say one of (off|on|clear|add|del)" && return
-  
-  message_post $1 "Attempting to modify keyword stuff ${USE_KEYWORDS} ${#KEYWORDS[*]} "
+
+  #message_post $1 "Attempting to modify keyword stuff ${USE_KEYWORDS} ${#KEYWORDS[*]} "
 
   if [ "$3" == "off" ]; then
-    message_post $1 "Use keywords off"
+    message_post $2 "Use keywords off"
     USE_KEYWORDS="0"
   elif [ "$3" == "on" ]; then
-    message_post $1 "Use keywords on"
+    message_post $2 "Use keywords on"
     USE_KEYWORDS="1"
   elif [ "$3" == "clear" ]; then
     KEYWORDS=()
@@ -119,7 +119,7 @@ run_keyword(){
     [ ! "$4" ] && message_post $1 "Requires a word" && return
     [ ! "$5" ] && message_post $1 "Requries at least a one word response" && return
    
-    SENDER=$1
+    SENDER=$2
     shift 3
     KW=$1
     KEYWORDS=("${KEYWORDS[@]}" "$1")
@@ -134,7 +134,7 @@ run_keyword(){
     for found in "${KEYWORDS[@]}"; do
       result=$(echo "$*" | /bin/grep -i "$found")
       if [ "${result}" ]; then
-        message_post $1 "Keyword [ ${KEYWORDS[${I}]} ] is [ ${KEYWORD_RESPONSES[$I]} ]"
+        message_post $2 "Keyword [ ${KEYWORDS[${I}]} ] is [ ${KEYWORD_RESPONSES[$I]} ]"
         return
       fi
       ((I=$I+1))
@@ -147,7 +147,7 @@ run_keyword(){
       if [ "${result}" ]; then
           KEYWORDS=(${KEYWORDS[@]:0:$I} ${KEYWORDS[@]:$(($I + 1))})
           KEYWORD_RESPONSES=(${KEYWORD_RESPONSES[@]:0:$I} ${KEYWORD_RESPONSES[@]:$(($I + 1))})
-          message_post $1 "Removed keyword [ $found ]"
+          message_post $2 "Removed keyword [ $found ]"
           return
       fi
       (( I=$I+1 ))
@@ -172,6 +172,8 @@ run_emote(){
 run_mycmd(){
 
   [ "$1" != "aconole" -a "$1" != "brad[]" ] && message_post $1 "Sorry I don't know you" && return
+
+  SENDER="$1"
 
   if [ "$2" == "uptime" ]; then
     [ ! -e /usr/bin/uptime ] && message_post $1 "Sorry - no uptime binary" && return
@@ -202,7 +204,8 @@ run_mycmd(){
   elif [ "$2" == "emote" ]; then
     run_emote $*
   elif [ "$2" == "keyword" ]; then
-    run_keyword $*
+    shift 2
+    run_keyword $SENDER $SENDER $*
   elif [ "$2" == "quit" ]; then
     run_quit $*
   else
@@ -254,6 +257,9 @@ handler_callback_tochan(){
       message_post $CHANNEL "Exploded url: $URL "
     elif [ "${1:2}" == "keywords" ]; then
       message_post $CHANNEL "Recognized keywords [ ${KEYWORDS[@]} ]"
+    elif [ "${1:2}" == "keyword" ]; then
+      shift
+      run_keyword $SENDER $CHANNEL $*
     else
       message_post $CHANNEL "Channel command [ ${1:2} ] not supported"
     fi
