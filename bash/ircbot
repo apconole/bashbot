@@ -1,0 +1,109 @@
+#!/bin/bash
+
+#
+# configuration
+
+nick="`basename $0`"	# nickname
+name="$0"		# real name
+chan="#bash"		# channels to join
+mode="+i"		# irc mode
+
+# end of configuration
+# use our login name if there's no nickname
+nick="${nick:-$USER}"
+
+# see if we can find a realname for our nickname
+name="${name:-`grep $nick /etc/passwd | cut -d : -f 5`}"
+host="$1"
+port="$2"
+
+USE_KEYWORDS="0"
+KEYWORDS=()
+KEYWORD_RESPONSES=()
+ALLOW_REVERSE_SHELL=0
+
+debug(){
+  ( echo "$*" >>irc-debug 2>/dev/null )
+}
+
+#
+# msg_handler handles private messages
+msg_handler(){
+
+  if [ -e handler_callbacks ]; then
+    source handler_callbacks
+  fi
+
+  debug "Privmsg: " "$*"
+
+  SENDER=${1%%\!*}
+  SENDER=${SENDER:1}
+
+  debug "Sender: $SENDER"
+
+  DESTINATION="$3"
+
+  debug "Dest: $DESTINATION vs $nick"
+
+  shift 3
+
+  if [ "$DESTINATION" == "$nick" ]; then
+      handler_callback_tome "$SENDER" $*
+  fi
+
+  if [ "${DESTINATION:0:1}" == "#" ]; then
+      handler_callback_tochan "$SENDER" "$DESTINATION" $*
+  fi
+
+}
+
+# redirect error messages to file `irc-errors'
+exec 3<> irc-errors 2>&3-
+
+if [ ! "$host" ]; then
+  echo "usage: `basename $0` hostname [port]"
+  exit 1
+fi
+
+if [ ! "$port" ]; then
+  port="6667"
+fi
+
+# try to connect
+if ! exec 3<> /dev/tcp/$host/$port; then
+  echo "`basename $0`: unable to connect to $host:$port"
+  exit 1
+fi
+
+#exec 4<> irc-debug
+
+# duplicate standard input and output with the newly created socket
+exec 0<&3 1>&3-
+
+# register to the server
+echo "USER $nick ${mode:-+iw} $nick :$name"
+echo "NICK $nick"
+# join channels
+for c in $chan; do echo "JOIN $c"; done
+
+while read; do
+  set -- ${REPLY//$'\r'/}
+
+#  echo "$*" >>&4
+
+  # answer the critical ping request
+  # otherwise the server will disconnect us
+  [ "$1" == "PING" ] && echo "PONG $2"
+
+
+  if [ "$2" == "PRIVMSG" ] ; then
+    msg_handler $*
+  fi
+
+  if [ "$2" == "JOIN" ] ; then
+    debug "Join Event $*"
+  fi
+
+done
+
+exec 1<&- 2<&-

