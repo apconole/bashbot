@@ -81,6 +81,8 @@ if ! exec 3<> /dev/tcp/$host/$port; then
   exit 1
 fi
 
+set -f
+
 #exec 4<> irc-debug
 
 # duplicate standard input and output with the newly created socket

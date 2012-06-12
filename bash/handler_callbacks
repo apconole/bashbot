@@ -230,6 +230,8 @@ run_shorten(){
    message_post $2 "Shortened [ $RESULT ]"
 }
 
+GCC_FLAGS="-finput-charset=UTF-8 -O2 -std=c++0x -pedantic-errors -Wfatal-errors -Wall -Wextra -Wno-empty-body -Wno-missing-field-initializers -Wwrite-strings -Wno-deprecated -Wno-unused -Wno-non-virtual-dtor -Wno-variadic-macros -fno-use-linker-plugin -fmessage-length=0 -ftemplate-depth-128 -fno-merge-constants -fno-nonansi-builtins -fno-gnu-keywords -fno-elide-constructors -fstrict-aliasing -fstack-protector-all -Winvalid-pch -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_GLIBCXX_CONCEPT_CHECKS"
+
 run_controller(){
 
   SENDER=$1
@@ -305,24 +307,25 @@ run_compile(){
 
   [ ! "$*" ] && message_post $RESPONSE "Error - no shit to compile"
 
-  HASMAIN=$(echo "$*" | /bin/grep -w -E "main")
+  HASMAIN=$(/bin/echo "$*" | /bin/grep -w -E "main")
 
   BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" )
 
   for badword in "${BADWORDS[@]}"; do
-    HASWORD=$(echo "$*" | /bin/grep -w -o "$badword")
+    HASWORD=$(/bin/echo "$*" | /bin/grep -w -o "$badword")
     if [ "${HASWORD}" ]; then
-      message_post $RESPONSE "Sorry, ${SENDER}, but you used a bad word: [ $badword ]"
+      message_post $RESPONSE "Sorry, ${SENDER}, but you used a bad word: [ $badword ]" 
       return
     fi
   done
-  
+
 
   COUTFILE=$(/bin/mktemp --suffix=.cc)
+  OOUTFILE=$(/bin/mktemp --suffix=.o)
   AOUTFILE=$(/bin/mktemp)
   WARNFIL=$(/bin/mktemp)
 
-  cat > $COUTFILE <<EOF
+  /bin/cat > $COUTFILE <<EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -355,24 +358,154 @@ EOF
 
       [ "${1:0:1}" != "{" ] && $(echo "{" >> $COUTFILE)
   fi
+  
 
-  $(printf '%s' "$*" >> $COUTFILE)
+  $(set -f && echo -en "$*" >> $COUTFILE)
 
-  ERRORS=$(/usr/bin/g++ -Wall -o $AOUTFILE $COUTFILE 2>$WARNFIL)
+  ERRORS=$(/usr/bin/g++ ${GCC_FLAGS} -Dmain="APP_TMP_MAIN_main" -c -o $OOUTFILE $COUTFILE 2>&1)
 
-  if [ -s "$WARNFIL" ]; then
+  if [ "$ERRORS" ]; then
     LINES_OF_WARNING_ERROR=$(/bin/wc -l $WARNFIL)
     message_post $RESPONSE "Generated warnings/errors [ $ERRORS ]"
+    $(echo "$ERRORS" > /tmp/recenterrors)
+    /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
-#    /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL
     return
   fi
-  /bin/chmod +x $WARNFIL
+
+  /bin/cat >$COUTFILE <<EOF
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/ptrace.h>
+#include <sys/wait.h>
+#include <assert.h>
+#include <pthread.h>
+#include <iostream>
+#include <vector>
+#include <map>
+#include <valarray>
+#include <string>
+#include <iomanip>
+#include <algorithm>
+#include <list>
+#include <set>
+#include <sstream>
+#include <fstream>
+#include <stack>
+
+#include <assert.h>
+#include <sys/ptrace.h>
+#include <linux/ptrace.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+//#include <linux/user.h>
+#include <sys/syscall.h>
+#include <syscall.h>
+#include <sys/reg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <sys/time.h>
+#include <sys/resource.h>
+
+#ifdef __x86_64__
+#define SYSCALL_OFF (ORIG_RAX * 8)
+#else
+#define SYSCALL_OFF (ORIG_EAX * 4)
+#endif
+
+using namespace std;
+
+extern int APP_TMP_MAIN_main();
+
+int main()
+{
+
+    pid_t childID = fork();
+
+    if( ! childID )
+    {
+        rlim_t kCpuTime = 2L; /* 2 seconds */
+        struct rlimit r1;
+        int result = getrlimit(RLIMIT_CPU, &r1);
+        if( result != 0 )
+        {
+            cout << "FAILED: rlimit error" << endl;
+            return 0;
+        }
+        if ( r1.rlim_cur > kCpuTime )
+             r1.rlim_cur = kCpuTime;
+        result = setrlimit( RLIMIT_CPU, &r1 ); 
+        
+        if( result != 0 )
+        {
+            cout << "FAILED: rlimit error" << endl;
+            return 0;
+        }
+
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
+        APP_TMP_MAIN_main();
+        return 0;
+    }
+
+    if( childID < 0 )
+    {
+        cout << "FAILED: ptrace/fork error" << endl;
+        return 0;
+    }
+
+    int status;
+    wait (&status);
+
+    if ( WIFEXITED(status) )
+       return 0;
+
+    assert( WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP );
+
+    assert( ptrace(PTRACE_SETOPTIONS, childID, NULL, PTRACE_O_TRACESYSGOOD) != -1 );
+
+    do
+    {
+       assert( ptrace(PTRACE_SYSCALL, childID, NULL, NULL) != -1 );
+       assert( wait(&status) != -1 );
+
+       if (WIFEXITED(status)) break;
+
+       if (WSTOPSIG(status) == (SIGTRAP | 0x80))
+       {
+           cout << "syscall trap" << ptrace(PTRACE_PEEKUSER, childID, SYSCALL_OFF, NULL) << endl;
+       }
+       else
+       {
+           assert( WSTOPSIG(status) == SIGTRAP );
+           cout << "Non-syscall trap" << endl;
+       }
+       
+    }while(1);
+
+    return 0;
+}
+
+EOF
+
+  ERRORS=$(/usr/bin/g++ -fpermissive ${GCC_FLAGS} -o $AOUTFILE $COUTFILE $OOUTFILE 2>&1 )
+  if [ "$ERRORS" -a $? -eq 1 ]; then
+    LINES_OF_WARNING_ERROR=$(/bin/wc -l $WARNFIL)
+    message_post $RESPONSE "Generated warnings/errors [ ${ERRORS} ]"
+    /bin/rm -f $AOUTFILE $WARNFIL $OOUTFILE
+
+    return
+  fi
 
   /bin/cat >$WARNFIL <<EOF
 #!/bin/bash
 ulimit -t 2
-ulimit -u 5
+#ulimit -u 5
 $AOUTFILE
 EOF
 
@@ -380,7 +513,7 @@ EOF
 
   RESULT=$( ${WARNFIL} 2>&1 )
  
-  /bin/rm -f ${WARNFIL} ${AOUTFILE} ${COUTFILE}
+  /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
   message_post $RESPONSE "Result is [ $RESULT ]"
 }
@@ -506,7 +639,7 @@ handler_callback_tochan(){
     fi
 #    else
 #        message_post $SENDER "Channel command [ ${1:2} ] not supported"
-    fi
+#    fi
 
     return
   fi
