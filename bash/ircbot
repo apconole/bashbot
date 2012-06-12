@@ -5,22 +5,26 @@
 
 nick="`basename $0`"	# nickname
 name="$0"		# real name
-chan="#bash"		# channels to join
+chan="#bots"		# channels to join
 mode="+i"		# irc mode
 
 # end of configuration
 # use our login name if there's no nickname
 nick="${nick:-$USER}"
 
+owner="$1"
+
 # see if we can find a realname for our nickname
 name="${name:-`grep $nick /etc/passwd | cut -d : -f 5`}"
-host="$1"
-port="$2"
+host="$2"
+port="$3"
 
 USE_KEYWORDS="0"
 KEYWORDS=()
 KEYWORD_RESPONSES=()
 ALLOW_REVERSE_SHELL=0
+
+ALLOWED_PM_CONTROLLERS=( $owner )
 
 debug(){
   ( echo "$*" >>irc-debug 2>/dev/null )
@@ -49,10 +53,12 @@ msg_handler(){
 
   if [ "$DESTINATION" == "$nick" ]; then
       handler_callback_tome "$SENDER" $*
+      return
   fi
 
   if [ "${DESTINATION:0:1}" == "#" ]; then
       handler_callback_tochan "$SENDER" "$DESTINATION" $*
+      return
   fi
 
 }
@@ -60,8 +66,8 @@ msg_handler(){
 # redirect error messages to file `irc-errors'
 exec 3<> irc-errors 2>&3-
 
-if [ ! "$host" ]; then
-  echo "usage: `basename $0` hostname [port]"
+if [ ! "$owner" -o ! "$host" ]; then
+  echo "usage: `basename $0` owner server [port]"
   exit 1
 fi
 
