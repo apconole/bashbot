@@ -297,8 +297,8 @@ run_emote(){
 
 run_compile(){
 
-  authenticated $1 $2 RESULT
-  [ ${RESULT} -eq 0 ] && message_post $1 "Sorry, ${1}, but you are not authorized to compile" && return
+#  authenticated $1 $2 RESULT
+#  [ ${RESULT} -eq 0 ] && message_post $1 "Sorry, ${1}, but you are not authorized to compile" && return
 
   SENDER=$1
   RESPONSE=$2
@@ -309,12 +309,12 @@ run_compile(){
 
   HASMAIN=$(/bin/echo "$*" | /bin/grep -w -E "main")
 
-  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" )
+  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" )
 
   for badword in "${BADWORDS[@]}"; do
     HASWORD=$(/bin/echo "$*" | /bin/grep -w -o "$badword")
     if [ "${HASWORD}" ]; then
-      message_post $RESPONSE "Sorry, ${SENDER}, but you used a bad word: [ $badword ]" 
+      message_post $RESPONSE "blocked app due to: [ $badword ]" 
       return
     fi
   done
@@ -343,12 +343,13 @@ run_compile(){
 #include <list>
 #include <set>
 #include <sstream>
-#include <fstream>
 #include <stack>
 
 using namespace std;
 
 EOF
+
+  NEEDSTERM="false"
 
   if [ ! "$HASMAIN" ]; then
       cat >> $COUTFILE <<EOF
@@ -356,18 +357,20 @@ EOF
 int main()
 EOF
 
-      [ "${1:0:1}" != "{" ] && $(echo "{" >> $COUTFILE)
+      [ "${1:0:1}" != "{" ] && $(echo "{" >> $COUTFILE) && NEEDSTERM="true"
   fi
   
 
-  $(set -f && echo -en "$*" >> $COUTFILE)
+  $(set -f && echo "$*" >> $COUTFILE)
+
+  [ "$NEEDSTERM" == "true" ] && $(echo "}" >> $COUTFILE)
 
   ERRORS=$(/usr/bin/g++ ${GCC_FLAGS} -Dmain="APP_TMP_MAIN_main" -c -o $OOUTFILE $COUTFILE 2>&1)
 
   if [ "$ERRORS" ]; then
-    LINES_OF_WARNING_ERROR=$(/bin/wc -l $WARNFIL)
-    message_post $RESPONSE "Generated warnings/errors [ $ERRORS ]"
-    $(echo "$ERRORS" > /tmp/recenterrors)
+    BADSTUFF=$(echo "$ERRORS" | /bin/grep -o -E -m 1 "(warning\:|error\:).*" )
+
+    message_post $RESPONSE "submitted: ${BADSTUFF}"
     /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
     return
@@ -448,7 +451,7 @@ int main()
             return 0;
         }
 
-        ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
+        //ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
         APP_TMP_MAIN_main();
         return 0;
     }
@@ -467,11 +470,11 @@ int main()
 
     assert( WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP );
 
-    assert( ptrace(PTRACE_SETOPTIONS, childID, NULL, PTRACE_O_TRACESYSGOOD) != -1 );
+//    assert( ptrace(PTRACE_SETOPTIONS, childID, NULL, PTRACE_O_TRACESYSGOOD) != -1 );
 
     do
     {
-       assert( ptrace(PTRACE_SYSCALL, childID, NULL, NULL) != -1 );
+//       assert( ptrace(PTRACE_SYSCALL, childID, NULL, NULL) != -1 );
        assert( wait(&status) != -1 );
 
        if (WIFEXITED(status)) break;
@@ -493,10 +496,11 @@ int main()
 
 EOF
 
-  ERRORS=$(/usr/bin/g++ -fpermissive ${GCC_FLAGS} -o $AOUTFILE $COUTFILE $OOUTFILE 2>&1 )
+  ERRORS=$(/usr/bin/g++ -fpermissive -o $AOUTFILE $COUTFILE $OOUTFILE 2>&1 )
   if [ "$ERRORS" -a $? -eq 1 ]; then
-    LINES_OF_WARNING_ERROR=$(/bin/wc -l $WARNFIL)
-    message_post $RESPONSE "Generated warnings/errors [ ${ERRORS} ]"
+    BADSTUFF=$(echo "$ERRORS" | /bin/grep -o -E -m 1 "(warning\:|error\:|undefined).*" )
+
+    message_post $RESPONSE "precomp: ${BADSTUFF}"
     /bin/rm -f $AOUTFILE $WARNFIL $OOUTFILE
 
     return
@@ -515,7 +519,15 @@ EOF
  
   /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
-  message_post $RESPONSE "Result is [ $RESULT ]"
+  message_post $RESPONSE "$RESULT"
+}
+
+run_rot13(){
+  SENDER=$1
+  RESPOND=$2
+  shift 2
+  ROTMSG=$(echo "$*" | /usr/bin/tr 'a-zA-Z' 'n-za-mN-ZA-M')
+  message_post $RESPOND "$ROTMSG"
 }
 
 run_mycmd(){
@@ -564,6 +576,8 @@ run_mycmd(){
     run_shorten $SENDER $SENDER $*
   elif [ "$KW" == "quit" ]; then
     run_quit $SENDER $RESPOND "$*"
+  elif [ "$KW" == "rot13" ]; then
+    run_rot13 $SENDER $RESPOND "$*"
   else
     message_post $SENDER "Unknown command: [$KW]"
   fi
@@ -595,7 +609,6 @@ handler_callback_tome(){
 ## CHANNEL
 ##
 #############################################################################
-
 
 handler_callback_tochan(){
   debug "TOCHAN ARGS: $*"
@@ -633,6 +646,27 @@ handler_callback_tochan(){
     elif [ "${1:2}" == "compile" ]; then
       shift
       run_compile $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "rot13" ]; then
+      shift
+      run_rot13 $SENDER $CHANNEL "$*"
+    elif [ "${1:2}" == "doctor" ]; then
+      [ ! "${2}" ] && message_post $CHANNEL "Doctor is ${DRBOT}" && return
+      authenticated $SENDER $CHANNEL RESULT
+      [ ${RESULT} -eq 0 ] && message_post $CHANNEL "Sorry, $SENDER, but you can't change this doctor" && return
+      [ "${2}" == "on" ] && DRBOT="on" && message_post $CHANNEL "Dr - $DRBOT" && return
+      [ "${2}" == "off" ] && DRBOT="off" && message_post $CHANNEL "Dr - $DRBOT" && return
+      message_post $CHANNEL "I only understand on/off"
+    elif [ "${1:2}" == "help" ]; then
+      message_post $CHANNEL "I understand any of [uptime|explode|keywords|keyword|controller|shorten|join|part|compile|rot13|doctor|quit]"
+    elif [ "${1:2}" == "part" ]; then
+      shift
+      run_part $SENDER $CHANNEL $CHANNEL
+    elif [ "${1:2}" == "facebook" ]; then
+      shift
+      message_post $CHANNEL "Facebook: because even when you're taking a shit, you need ignorant fucking political discussion"
+    elif [ "${1:2}" == "XenithOS" ]; then
+      shift
+      message_post $CHANNEL "it's gay"
     elif [ "${1:2}" == "quit" ]; then
       shift
       run_quit $SENDER $CHANNEL "$*"
@@ -672,5 +706,76 @@ handler_callback_tochan(){
         fi
         (( I=$I+1 ))
       done
+  fi
+
+  if [ "$DRBOT" == "on" ]; then
+    if [ "$1" == ":${nick}" -o "$1" == ":$nick:" -o "$1" == ":$nick," ]; then
+      shift
+      INPUTLINE=$(echo "$*" | tr "[a-z]" "[A-Z]" | /bin/sed 's/^/ /; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
+      #message_post $SENDER $INPUTLINE
+      case "$INPUTLINE" in
+        *YOU\ ARE\ *)
+            INPUTLINE=$(echo "${INPUTLINE}?" | /bin/sed 's/^.*YOU\ ARE/WHY DO YOU THINK YOU ARE/')
+            ;;
+        *YOU\ HAVE\ *)
+            INPUTLINE=$(echo "${INPUTLINE}?" | /bin/sed 's/^.*YOU\ HAVE/HOW LONG HAVE YOU HAD/')
+            ;;
+        WHY\ DOES*|WHY\ DO*)
+            INPUTLINE=$(echo "${INPUTLINE}?" | /bin/sed 's/^WHY\ \(DO\|DOES\) //')
+            INPUTLINE="why do you think that $INPUTLINE"
+            ;;
+        YOU*)
+            INPUTLINE="when did you first realize that ${INPUTLINE}?"
+            ;;
+        *BECAUSE*)
+            STATEMENT=$(echo "${INPUTLINE}?" | /bin/sed 's/^.*BECAUSE //')
+            INPUTLINE="are you sure ${STATEMENT}"
+            ;;
+        *DO\ IRCBOT\ THINK*)
+            INPUTLINE="can't you answer that yourself?"
+            ;;
+        *IRCBOTS*)
+            INPUTLINE="let's keep the conversation on something else please"
+            ;;
+        *IRCBOT\ IS*|IRCBOT\ IS*)
+            STATEMENT=$(echo "$INPUTLINE" | /bin/sed 's/^.*IRCBOT IS //')
+            INPUTLINE="I do not think I am $STATEMENT"
+            ;;
+        *TOUCHY*|*TESTY*|*ANGRY*|*MAD*|*HAPPY*|*SAD*|*EXCITED*)
+            INPUTLINE="I have no emotions. That said, why have you interpreted my statement as such?"
+            ;;
+        *ARE\ IRCBOT*|*IS\ IRCBOT*|ARE\ IRCBOT*|IS\ IRCBOT*)
+            STATEMENT=$(echo "$INPUTLINE" | /bin/sed "s/^.*\(ARE\|IS\) IRCBOT //")
+            INPUTLINE="do you think I am ${STATEMENT}?"
+            ;;
+        *IS\ *\'S*|*DOES\ *\'S*|IS\ *\'S*|DOES\ *\'S*)
+            PERSON=$(echo "$INPUTLINE" | /bin/sed "s/^.*\(DOES\|IS\) \(.*'S\) \(.*\)/\2/" | /usr/bin/cut -d"'" -f1)
+            INPUTLINE="you should ask $PERSON"
+            ;;
+        IS\ AWESOME|IS\ GOOD|IS\ GREAT)
+            INPUTLINE="thank you"
+            ;;
+        IS\ AWESOME\ AT*|IS\ GOOD\ AT*|IS\ GREAT\ AT*|IS\ GAY)
+            INPUTLINE="i am not sure about that"
+            ;;
+        SUCKS\ AT*|STINKS\ AT*)
+            INPUTLINE="i have no doubt this is correct"
+            ;;
+        IRCBOT\ SUCKS|IRCBOT\ SUCKS*|*IRCBOT\ SUCKS*|*IRCBOT\ SUCKS|IS\ *|SUCKS*)
+            INPUTLINE="and you are a ray of sunshine?"
+            ;;
+        YES*)
+            INPUTLINE="why do you think this is so?"
+            ;;
+        NO*)
+            INPUTLINE="Why are you being negative?"
+            ;;
+          *)
+            INPUTLINE="Why do you say ${INPUTLINE}?"
+            ;;
+      esac
+      INPUTLINE=$(echo "$INPUTLINE" | /usr/bin/tr "[A-Z]" "[a-z]")
+      message_post $CHANNEL "$SENDER, $INPUTLINE"
+    fi
   fi
 }
