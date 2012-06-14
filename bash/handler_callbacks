@@ -92,6 +92,7 @@ run_google(){
   SEARCH_RESULT=$($CURL_BIN -A Mozilla "http://ajax.googleapis.com/ajax/services/search/web?v=1.0&q=$SEARCH_TERMS" | $GREP_BIN -Eo "(unescapedUrl|titleNoFormatting)\"\:\"([a-z]|[A-Z]|[0-9]|[:]|[/]|[/.]|[\\]|[ ]|[/-]|[&]|[/=]|[/?]|['])*" | $SED_BIN 's@":"@,@g')
 
   POSTED="false"
+
   I=0
   while [ $I -lt 5 ]; do
       CURRENT_TITLE_SLICE=$(echo "${SEARCH_RESULT}" | $GREP_BIN title -m ${I} | $TAIL_BIN -n 1 | $CUT_BIN -d"," -f2)
@@ -586,6 +587,82 @@ run_rot13(){
   message_post $RESPOND "$ROTMSG"
 }
 
+run_cve_search(){
+  SENDER=$1
+  RESPOND=$2
+  shift 2
+
+  debug "$SENDER asked for cve stuff"
+
+  CVENUM=$(echo "$*" | $SED_BIN 's@cve@@g')
+
+  debug "Seeking cve $CVENUM"
+ 
+  RESULT_TXT=$($CURL_BIN "http://www.exploit-db.com/search/?action=search&filter_page=1&filter_cve=${CVENUM}" 2>/dev/null)
+
+  RESULTS=$(echo "$RESULT_TXT" | $GREP_BIN www.exploit-db.com/exploits | $SED_BIN 's@^.*<a  href="\(http\://www.exploit-db.com/exploits/.*\)">\(.*\)</a>@title [ \2 ] link [ \1 ]@g')
+
+  RESULT_NUM=$(echo "$RESULTS" | $GREP_BIN -c title)
+
+  if [ $RESULT_NUM -eq 0 ]; then
+    message_post $RESPOND "No results."
+  elif [ $RESULT_NUM -eq 1 ]; then
+    message_post $RESPOND "$SENDER, $RESULTS"
+  else
+
+    if [ $RESULT_NUM -gt 3 ]; then
+       RESULT_NUM=3
+    fi
+
+    I=0
+    while [ $I -lt $RESULT_NUM ]; do
+      ((I = $I + 1))
+      RESULT=$(echo "$RESULTS" | $GREP_BIN -m ${I} title | $TAIL_BIN -n 1)
+      message_post $RESPOND "$SENDER, $RESULT"
+    done
+  fi
+
+}
+
+run_exploit_search(){
+  SENDER=$1
+  RESPOND=$2
+  shift 2
+
+  # after this point, we have all the stuff
+  IS_CVE_SEARCH=$(echo "$1" | $TR_BIN 'a-z' 'A-Z')
+  
+  if [ "${IS_CVE_SEARCH:0:3}" == "CVE" ]; then
+    run_cve_search $SENDER $RESPOND $@
+    return
+  fi
+
+  RESULT_TXT=$($CURL_BIN "http://www.exploit-db.com/search/?action=search&filter_page=1&filter_description=$@" 2>/dev/null)
+
+  RESULTS=$(echo "$RESULT_TXT" | $GREP_BIN www.exploit-db.com/exploits | $SED_BIN 's@^.*<a  href="\(http\://www.exploit-db.com/exploits/.*\)">\(.*\)</a>@title [ \2 ] link [ \1 ]@g')
+
+  RESULT_NUM=$(echo "$RESULTS" | $GREP_BIN -c title)
+
+  if [ $RESULT_NUM -eq 0 ]; then
+    message_post $RESPOND "No results."
+  elif [ $RESULT_NUM -eq 1 ]; then
+    message_post $RESPOND "$SENDER, $RESULTS"
+  else
+
+    if [ $RESULT_NUM -gt 3 ]; then
+       RESULT_NUM=3
+    fi
+
+    I=0
+    while [ $I -lt $RESULT_NUM ]; do
+      ((I = $I + 1))
+      RESULT=$(echo "$RESULTS" | $GREP_BIN -m ${I} title | $TAIL_BIN -n 1)
+      message_post $RESPOND "$SENDER, $RESULT"
+    done
+  fi
+
+}
+
 run_mycmd(){
 
   SENDER="$1"
@@ -708,6 +785,9 @@ handler_callback_tochan(){
     elif [ "${1:2}" == "rot13" ]; then
       shift
       run_rot13 $SENDER $CHANNEL "$*"
+    elif [ "${1:2}" == "exploitdb" ]; then
+      shift
+      run_exploit_search $SENDER $CHANNEL "$*"
     elif [ "${1:2}" == "doctor" ]; then
       [ ! "${2}" ] && message_post $CHANNEL "Doctor is ${DRBOT}" && return
       authenticated $SENDER $CHANNEL RESULT
