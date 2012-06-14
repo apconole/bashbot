@@ -366,7 +366,7 @@ run_compile(){
 
   HASMAIN=$(/bin/echo "$*" | $GREP_BIN -w -E "main")
 
-  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" "syscall" "remove" )
+  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" "syscall" "remove" "opendir" "readdir" "unlink" "sysconf" "ipstream" "pstream" )
 
   for badword in "${BADWORDS[@]}"; do
     HASWORD=$(/bin/echo "$*" | $GREP_BIN -w -o "$badword")
@@ -569,7 +569,7 @@ EOF
 #!/bin/bash
 ulimit -t 2
 #ulimit -u 5
-$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||'
+$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||' | /usr/bin/colrm 26
 
 EOF
 
