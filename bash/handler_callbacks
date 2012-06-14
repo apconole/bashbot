@@ -366,7 +366,7 @@ run_compile(){
 
   HASMAIN=$(/bin/echo "$*" | $GREP_BIN -w -E "main")
 
-  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" )
+  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" "syscall" "remove" )
 
   for badword in "${BADWORDS[@]}"; do
     HASWORD=$(/bin/echo "$*" | $GREP_BIN -w -o "$badword")
@@ -376,13 +376,15 @@ run_compile(){
     fi
   done
 
-
-  COUTFILE=$($MKTEMP_BIN --suffix=.cc)
-  OOUTFILE=$($MKTEMP_BIN --suffix=.o)
+  MKTEMP_BIN=/bin/mktemp
+  COUTFILE=$($MKTEMP_BIN )
+  OOUTFILE=$($MKTEMP_BIN )
   AOUTFILE=$($MKTEMP_BIN)
   WARNFIL=$($MKTEMP_BIN)
 
-  $CAT_BIN > $COUTFILE <<EOF
+  debug "compile to $COUTFILE.cc"
+
+  $CAT_BIN > ${COUTFILE}.cc <<EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -409,31 +411,31 @@ EOF
   NEEDSTERM="false"
 
   if [ ! "$HASMAIN" ]; then
-      $CAT_BIN >> $COUTFILE <<EOF
+      $CAT_BIN >> ${COUTFILE}.cc <<EOF
 
 int main()
 EOF
 
-      [ "${1:0:1}" != "{" ] && $(echo "{" >> $COUTFILE) && NEEDSTERM="true"
+      [ "${1:0:1}" != "{" ] && $(echo "{" >> ${COUTFILE}.cc) && NEEDSTERM="true"
   fi
   
 
-  $(set -f && echo "$*" >> $COUTFILE)
+  $(set -f && echo "$*" >> ${COUTFILE}.cc)
 
-  [ "$NEEDSTERM" == "true" ] && $(echo "}" >> $COUTFILE)
+  [ "$NEEDSTERM" == "true" ] && $(echo "}" >> ${COUTFILE}.cc)
 
-  ERRORS=$($CXX ${GCC_FLAGS} -Dmain="APP_TMP_MAIN_main" -c -o $OOUTFILE $COUTFILE 2>&1)
+  ERRORS=$($CXX ${GCC_FLAGS} -Dmain="APP_TMP_MAIN_main" -c -o ${OOUTFILE}.o ${COUTFILE}.cc 2>&1)
 
   if [ "$ERRORS" ]; then
     BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -o -E -m 1 "(warning\:|error\:).*" )
 
     message_post $RESPONSE "submitted: ${BADSTUFF}"
-    $RM_BIN -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
+    $RM_BIN -f $AOUTFILE $WARNFIL $OOUTFILE $COUTFILE ${COUTFILE}.cc ${OOUTFILE}.o
 
     return
   fi
 
-  $CAT_BIN >$COUTFILE <<EOF
+  $CAT_BIN >${COUTFILE}.cc <<EOF
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -553,12 +555,12 @@ int main()
 
 EOF
 
-  ERRORS=$($CXX -fpermissive -o $AOUTFILE $COUTFILE $OOUTFILE 2>&1 )
+  ERRORS=$($CXX -fpermissive -o $AOUTFILE ${COUTFILE}.cc ${OOUTFILE}.o 2>&1 )
   if [ "$ERRORS" -a $? -eq 1 ]; then
     BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -o -E -m 1 "(warning\:|error\:|undefined).*" )
 
     message_post $RESPONSE "precomp: ${BADSTUFF}"
-    $RM_BIN -f $AOUTFILE $WARNFIL $OOUTFILE
+    $RM_BIN -f $AOUTFILE $WARNFIL $OOUTFILE $COUTFILE ${COUTFILE}.cc ${OOUTFILE}.o
 
     return
   fi
@@ -567,7 +569,8 @@ EOF
 #!/bin/bash
 ulimit -t 2
 #ulimit -u 5
-$AOUTFILE
+$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||'
+
 EOF
 
   $CHMOD_BIN +x $WARNFIL
@@ -576,7 +579,8 @@ EOF
  
   $RM_BIN -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
-  message_post $RESPONSE "$RESULT"
+  [ "$RESULT" ] && message_post $RESPONSE "$RESULT" && return
+  message_post $RESPONSE "$SENDER, No output."
 }
 
 run_rot13(){
