@@ -366,7 +366,8 @@ run_compile(){
 
   HASMAIN=$(/bin/echo "$*" | $GREP_BIN -w -E "main")
 
-  BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" "syscall" "remove" "opendir" "readdir" "unlink" "sysconf" "ipstream" "pstream" )
+  #BADWORDS=( "socket" "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "system" "exec" "execl" "execvp" "execp" "execle" "ioctl" "asm" "fork" "vfork" "clone" "execve" "signal" "kill" "popen" "sigaction" "signal" "#include" "ifstream" "ofstream" "syscall" "remove" "opendir" "readdir" "unlink" "sysconf" "ipstream" "pstream" )
+  BADWORDS=( "somebadword" )
 
   for badword in "${BADWORDS[@]}"; do
     HASWORD=$(/bin/echo "$*" | $GREP_BIN -w -o "$badword")
@@ -467,7 +468,6 @@ EOF
 #include <unistd.h>
 //#include <linux/user.h>
 #include <sys/syscall.h>
-#include <syscall.h>
 #include <sys/reg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -485,8 +485,64 @@ using namespace std;
 
 extern int APP_TMP_MAIN_main();
 
-int main()
+struct syscalls_blocked 
 {
+  int syscall;
+  char *errorcall;
+} blocked[300];
+
+#define STRINGIFY(a) STRING(#a)
+#define STRING(a) #a
+
+#define BLOCK_SYSCALL(a) { blocked[a].errorcall = #a ; blocked[a].syscall=a; }
+
+int main(int argc, char *argv[])
+{
+    memset( &blocked, 0, sizeof(blocked));
+
+    int i = 0;
+    BLOCK_SYSCALL(__NR_clone);
+    BLOCK_SYSCALL(__NR_fork);
+    BLOCK_SYSCALL(__NR_vfork);
+    BLOCK_SYSCALL(__NR_execve);
+    BLOCK_SYSCALL(__NR_kill);
+    BLOCK_SYSCALL(__NR_rt_sigaction);
+    BLOCK_SYSCALL(__NR_rt_sigprocmask);
+    BLOCK_SYSCALL(__NR_rt_sigreturn);
+    BLOCK_SYSCALL(__NR_ioctl);
+    BLOCK_SYSCALL(__NR_shmget);
+    BLOCK_SYSCALL(__NR_shmat);
+    BLOCK_SYSCALL(__NR_shmctl);
+    BLOCK_SYSCALL(__NR_setitimer);
+    BLOCK_SYSCALL(__NR_socket);
+    BLOCK_SYSCALL(__NR_sendfile);
+    BLOCK_SYSCALL(__NR_semget);
+    BLOCK_SYSCALL(__NR_creat);
+    BLOCK_SYSCALL(__NR_rmdir);
+    BLOCK_SYSCALL(__NR_link);
+    BLOCK_SYSCALL(__NR_unlink);
+    BLOCK_SYSCALL(__NR_ptrace);
+    BLOCK_SYSCALL(__NR_syslog);
+    BLOCK_SYSCALL(__NR_setuid);
+    BLOCK_SYSCALL(__NR_setgid);
+    BLOCK_SYSCALL(__NR_setpgid);
+    BLOCK_SYSCALL(__NR_setsid);
+    BLOCK_SYSCALL(__NR_setresuid);
+    BLOCK_SYSCALL(__NR_setresgid);
+    BLOCK_SYSCALL(__NR_setfsuid);
+    BLOCK_SYSCALL(__NR_setfsgid);
+    BLOCK_SYSCALL(__NR_capset);
+    BLOCK_SYSCALL(__NR_personality);
+    BLOCK_SYSCALL(__NR_setpriority);
+    BLOCK_SYSCALL(__NR_sched_setparam);
+    BLOCK_SYSCALL(__NR_sched_setscheduler);
+    BLOCK_SYSCALL(__NR_mknod);
+    BLOCK_SYSCALL(__NR_chroot);
+    BLOCK_SYSCALL(__NR__sysctl);
+
+
+    if ( argc > 1 )
+      return APP_TMP_MAIN_main();
 
     pid_t childID = fork();
 
@@ -510,8 +566,8 @@ int main()
             return 0;
         }
 
-        //ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
-        APP_TMP_MAIN_main();
+        ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
+        execlp(argv[0], argv[0], "RUN", NULL);
         return 0;
     }
 
@@ -529,18 +585,55 @@ int main()
 
     assert( WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP );
 
-//    assert( ptrace(PTRACE_SETOPTIONS, childID, NULL, PTRACE_O_TRACESYSGOOD) != -1 );
+    assert( ptrace(PTRACE_SETOPTIONS, childID, NULL, PTRACE_O_TRACESYSGOOD) != -1 );
 
     do
     {
-//       assert( ptrace(PTRACE_SYSCALL, childID, NULL, NULL) != -1 );
+       assert( ptrace(PTRACE_SYSCALL, childID, NULL, NULL) != -1 );
        assert( wait(&status) != -1 );
 
        if (WIFEXITED(status)) break;
 
        if (WSTOPSIG(status) == (SIGTRAP | 0x80))
        {
-           cout << "syscall trap" << ptrace(PTRACE_PEEKUSER, childID, SYSCALL_OFF, NULL) << endl;
+           long syscallnum = ptrace(PTRACE_PEEKUSER, childID, SYSCALL_OFF, NULL);
+#if 0
+           switch(syscallnum)
+           {
+           /*
+           case   2: case  10: case  14: case   7: case   9: case  15: case  16:
+           case  21: case  22: case  23: case  24: case  26: case  29: case  34:
+           case  37: case  42: case  46: case  48: case  51: case  52: case  54:
+           case  61: case  66: case  67: case  69: case  70: case  71: case  72:
+           case  74: case  75: case  79: case  81: case  82: case  83: case  84:
+           case  86: case  87: case  88: case  89: case  90: case  93: case  94:
+           case  95: case  97: case 100: case 102: case 103: case 104: case 106:
+           case 107: case 108: case 110: case 111: case 114: case 115: case 117:
+           case 118: case 119: case 120: case 133: case 127: case 128: case 129:
+           case 130: case 134: case 135: case 136: case 138: case 139: case 143:
+           case 144: case 145: case 146: case 149: case 152: case 154: case 156:
+           case 163: case 164: case 169: case 170: case 172: case 173: case 174:
+           case 175: case 176: case 177: case 178: case 179: case 180: case 181:
+           case 182: case 185: case 186: case 187: case 190:
+           */
+           case  56: case  57: case  58: case  59: case  62:
+#endif
+           if ( syscallnum && syscallnum < 300 && blocked[syscallnum].syscall==syscallnum )
+           {
+               cout << "Killed:" 
+                    << " [0x" << hex << syscallnum << dec << "] "
+                    << blocked[syscallnum].errorcall 
+                    << endl;
+               kill(childID, SIGKILL);
+               exit(0);
+               break;
+           }
+#if 0
+           default:
+           //cout << "syscall trap " << syscallnum << endl;
+           break;
+           }
+#endif
        }
        else
        {
@@ -555,9 +648,9 @@ int main()
 
 EOF
 
-  ERRORS=$($CXX -fpermissive -o $AOUTFILE ${COUTFILE}.cc ${OOUTFILE}.o 2>&1 )
+  ERRORS=$($CXX -fpermissive -w -o $AOUTFILE ${COUTFILE}.cc ${OOUTFILE}.o 2>&1 )
   if [ "$ERRORS" -a $? -eq 1 ]; then
-    BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -o -E -m 1 "(warning\:|error\:|undefined).*" )
+    BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -E -m 1 "(warning\:|error\:|undefined).*" )
 
     message_post $RESPONSE "precomp: ${BADSTUFF}"
     $RM_BIN -f $AOUTFILE $WARNFIL $OOUTFILE $COUTFILE ${COUTFILE}.cc ${OOUTFILE}.o
@@ -569,7 +662,8 @@ EOF
 #!/bin/bash
 ulimit -t 2
 #ulimit -u 5
-$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||' | /usr/bin/colrm 26
+$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||' 
+#| /usr/bin/colrm 26
 
 EOF
 
