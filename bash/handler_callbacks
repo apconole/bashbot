@@ -18,10 +18,26 @@ authenticated(){
   eval $RETURN=1
 }
 
+nick_callback(){
+  debug "nick change request - $@"
+  NICK_INFO=${1%%\!*}
+  NICK_INFO=${NICK_INFO:1}
+
+  DEST_NICK=$3
+
+  if [ "$NICK_INFO" == "$nick" ]; then
+    if [ "${DEST_NICK:0:1}" == ":" ]; then
+      DEST_NICK=${DEST_NICK:1}
+    fi
+    debug "changed to $DEST_NICK"
+    nick="$DEST_NICK"
+  fi
+}
+
 message_post(){
   DESTINATION=$1
   shift
-  echo "PRIVMSG $DESTINATION :$*"
+  msg_send "PRIVMSG $DESTINATION :$*"
 }
 
 run_ping(){
@@ -48,7 +64,7 @@ run_join(){
   [ ! "$3" ] && message_post $1 "Need to specify a room to join" && return
   [ ! "${3:0:1}" == "#" ] && message_post $1 "Room name [ $3 ] seems bad" && return
 
-  echo "JOIN $3"
+  msg_send "JOIN $3"
   message_post $1 "Attempted to join room"
 }
 
@@ -59,7 +75,7 @@ run_part(){
   [ ! "$3" ] && message_post $1 "Need to specify a room to leave" && return
   [ ! "${3:0:1}" == "#" ] && message_post $1 "Room name [ $3 ] seems bad" && return
 
-  echo "PART $3"
+  msg_send "PART $3"
   message_post $1 "Attempted to leave room"
 }
 
@@ -126,9 +142,7 @@ run_nick(){
   [ ! "$3" ] && message_post $1 "Need to specify a new nick" && return
   [ "${3:0:1}" == "#" ] && message_post $1 "Nick [ $3 ] seems bad" && return
 
-  nick="$3"
-
-  echo "NICK $3"
+  msg_send "NICK $3"
   message_post $1 "Changed nick"
 }
 
@@ -659,8 +673,7 @@ EOF
 #!/bin/bash
 ulimit -t 2
 #ulimit -u 5
-$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||' | $TR_BIN -cd '\11\12\15\40-\176' 
-#| /usr/bin/colrm 26
+$AOUTFILE 2>&1 | $TR_BIN '\n\r\0' '|||' | $TR_BIN -cd '\11\12\15\40-\176' | /usr/bin/colrm 81
 
 EOF
 
@@ -942,7 +955,7 @@ handler_callback_tochan(){
   if [ "$DRBOT" == "on" ]; then
     if [ "$1" == ":${nick}" -o "$1" == ":$nick:" -o "$1" == ":$nick," ]; then
       shift
-      INPUTLINE=$(echo "$*" | tr "[a-z]" "[A-Z]" | $SED_BIN 's/^/ /; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
+      INPUTLINE=$(echo "$*" | $TR_BIN "[a-z]" "[A-Z]" | $SED_BIN 's/^/ /; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
       #message_post $SENDER $INPUTLINE
       case "$INPUTLINE" in
         *YOU\ ARE\ *)

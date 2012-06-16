@@ -51,6 +51,14 @@ debug(){
   ( echo "$*" >>irc-debug 2>/dev/null )
 }
 
+msg_send(){
+  if [ "$TIME_LAST_SENT" == "$SECONDS" ]; then
+    sleep 1
+  fi
+  TIME_LAST_SENT=$SECONDS
+  echo "$@"
+}
+
 #
 # msg_handler handles private messages
 msg_handler(){
@@ -129,6 +137,9 @@ while read; do
     debug "Join Event $*"
   fi
 
+  if [ "$2" == "NICK" ] ; then
+    nick_callback $*
+  fi
 done
 
 exec 1<&- 2<&-
