@@ -332,7 +332,7 @@ run_controller(){
     [ ! "$4" ] && message_post $RESPOND "Must give a name" && return
 
     authenticated $1 $2 RESULT
-    [ ${RESULT} -eq 0 ] && message_post $1 "Unable to change kw status - you are not a controller" && return
+    [ ${RESULT} -eq 0 ] && message_post $1 "Unable to add - you are not a controller" && return
 
     ALLOWED_PM_CONTROLLERS=(${ALLOWED_PM_CONTROLLERS[@]} "$4")
     message_post $RESPOND "Added - [ $4 ]"
@@ -340,7 +340,12 @@ run_controller(){
     [ ! "$4" ] && message_post $RESPOND "Must give a name" && return
 
     authenticated $1 $2 RESULT
-    [ ${RESULT} -eq 0 ] && message_post $1 "Unable to change kw status - you are not a controller" && return
+    [ ${RESULT} -eq 0 ] && message_post $1 "Unable to del - you are not a controller" && return
+
+    if [ ${#ALLOWED_PM_CONTROLLERS[@]} -eq 1 ]; then
+      message_post $RESPOND "Unable to delete yourself as last op"
+      return
+    fi
 
     I=0
     for found in "${ALLOWED_PM_CONTROLLERS[@]}"; do
@@ -761,19 +766,24 @@ run_exploit_search(){
     return
   fi
 
-  RESULT_TXT=$($CURL_BIN "http://www.exploit-db.com/search/?action=search&filter_page=1&filter_description=$@" 2>/dev/null)
+  SEARCH_TXT=$(echo "$@" | $SED_BIN 's/ /+/g')
+
+  RESULT_TXT=$($CURL_BIN "http://www.exploit-db.com/search/?action=search&filter_page=1&filter_exploit_text=$SEARCH_TXT" 2>/dev/null)
 
   RESULTS=$(echo "$RESULT_TXT" | $GREP_BIN www.exploit-db.com/exploits | $SED_BIN 's@^.*<a  href="\(http\://www.exploit-db.com/exploits/.*\)">\(.*\)</a>@title [ \2 ] link [ \1 ]@g')
 
   RESULT_NUM=$(echo "$RESULTS" | $GREP_BIN -c title)
 
   if [ $RESULT_NUM -eq 0 ]; then
-    message_post $RESPOND "No results."
+    message_post $RESPOND "No results for [ $@ ]."
   elif [ $RESULT_NUM -eq 1 ]; then
     message_post $RESPOND "$SENDER, $RESULTS"
   else
 
-    if [ $RESULT_NUM -gt 3 ]; then
+    if [ $RESULT_NUM -gt 10 ]; then
+       message_post $RESPOND "Too many results for [ $@ ] - [ $RESULT_NUM ]."
+       return
+    elif [ $RESULT_NUM -gt 3 ]; then
        RESULT_NUM=3
     fi
 
@@ -983,6 +993,10 @@ handler_callback_tochan(){
         *YOU\ HAVE\ *)
             INPUTLINE=$(echo "${INPUTLINE}?" | $SED_BIN 's/^.*YOU\ HAVE/HOW LONG HAVE YOU HAD/')
             ;;
+        YOU\ REALIZED*|WHEN\ *|*WHEN\ *|*YOU\ REALIZED*)
+            INPUTLINE=$(echo "${INPUTLINE}" | $SED_BIN 's/YOU REALIZED//g')
+            INPUTLINE="interesting. did anything else happen ${INPUTLINE}?"
+            ;;
         WHY\ DOES*|WHY\ DO*)
             INPUTLINE=$(echo "${INPUTLINE}?" | $SED_BIN 's/^WHY\ \(DO\|DOES\) //')
             INPUTLINE="why do you think that $INPUTLINE"
@@ -1037,7 +1051,8 @@ handler_callback_tochan(){
             INPUTLINE="Why do you say ${INPUTLINE}?"
             ;;
       esac
-      INPUTLINE=$(echo "$INPUTLINE" | $TR_BIN "[A-Z]" "[a-z]")
+      SEDLINE="s/ircbot/${nick}/g"
+      INPUTLINE=$(echo "$INPUTLINE" | $TR_BIN "[A-Z]" "[a-z]" | $SED_BIN $SEDLINE | $SED_BIN 's/yourself/klarself/g' | $SED_BIN 's/myself/yourself/g' | $SED_BIN 's/klarself/myself/g' )
       message_post $CHANNEL "$SENDER, $INPUTLINE"
     fi
   fi
