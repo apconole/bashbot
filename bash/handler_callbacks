@@ -40,6 +40,22 @@ message_post(){
   msg_send "PRIVMSG $DESTINATION :$*"
 }
 
+run_weather(){
+  SENDER=$1
+  RESPOND=$2
+
+  shift 2
+  [ ! "$1" ] && message_post $RESPOND "Error - need a zip or city,state" && return
+
+  WEATHER_REPORT=$($CURL_BIN "http://www.google.com/ig/api?weather=${1}&hl=en" | $SED_BIN 's/<forecast_conditions>.*//' | $SED_BIN 's/></>\n</g')
+
+  CITY=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<city' | $SED_BIN -e 's/<city data="//' -e 's/"\/>//')
+  CONDITION=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<condition' | $SED_BIN -e 's/<condition data="//' -e 's/"\/>//')
+  TEMP=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<temp_f' | $SED_BIN -e 's/<temp_f data="//' -e 's/"\/>//')
+
+  message_post $RESPOND "For [ $CITY ], temp [ $TEMP ], and [ $CONDITION ]"
+}
+
 run_ping(){
 
   authenticated $1 $2 RESULT
@@ -887,6 +903,9 @@ handler_callback_tochan(){
     elif [ "${1:2}" == "join" ]; then
       shift
       run_join $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "weather" ]; then
+      shift
+      run_weather $SENDER $CHANNEL $*
     elif [ "${1:2}" == "compile" ]; then
       shift
       run_compile $SENDER $CHANNEL $*
