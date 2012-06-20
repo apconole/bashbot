@@ -56,6 +56,32 @@ run_weather(){
   message_post $RESPOND "For [ $CITY ], temp [ $TEMP ], and [ $CONDITION ]"
 }
 
+run_op(){
+  authenticated $1 $2 RESULT
+  [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller" && return
+
+  message_post $2 "By the power of Greyskull..."
+
+  CHANNEL=$2
+
+  [ "$3" ] && shift 2
+
+  echo "MODE $CHANNEL +o $1"
+}
+
+run_deop(){
+  authenticated $1 $2 RESULT
+  [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller" && return
+
+  CHANNEL=$2
+
+  message_post $2 "When someone asks if you're a god..."
+
+  [ "$3" ] && shift 2
+
+  echo "MODE $CHANNEL -o $1"  
+}
+
 run_ping(){
 
   authenticated $1 $2 RESULT
@@ -401,7 +427,7 @@ run_compile(){
 
   HASMAIN=$(/bin/echo "$*" | $GREP_BIN -w -E "main")
 
-  BADWORDS=( "setuid" "setgid" "seteuid" "setegid" "fopen" "open" "creat" "ioctl" "asm" "signal" "sigaction" "signal" "#include" "ifstream" "ofstream" "syscall" "opendir" "readdir" "sysconf" "ipstream" "pstream" )
+  BADWORDS=( "ioctl" "signal" "sigaction" "syscall" "sysconf" )
   #BADWORDS=( "somebadword" )
 
   for badword in "${BADWORDS[@]}"; do
@@ -536,6 +562,8 @@ struct syscalls_blocked
 #define BLOCK_SYSCALL(a) { blocked[a].errorcall = #a ; blocked[a].syscall=a; }
 #define SPY_SYSCALL(a) { spied[a].errorcall = #a ; spied[a].syscall=a; }
 
+#define LIMIT(a, b, c) { rlimit kLimit; kLimit.rlim_cur = b; kLimit.rlim_max = c; if ( setrlimit( a, &kLimit ) < 0 ) { perror("setrlimit"); abort(); } }
+
 int main(int argc, char *argv[])
 {
     memset( &blocked, 0, sizeof(blocked));
@@ -594,23 +622,13 @@ int main(int argc, char *argv[])
 
     if( ! childID )
     {
-        rlim_t kCpuTime = 2L; /* 2 seconds */
-        struct rlimit r1;
-        int result = getrlimit(RLIMIT_CPU, &r1);
-        if( result != 0 )
-        {
-            cout << "FAILED: rlimit error" << endl;
-            return 0;
-        }
-        if ( r1.rlim_cur > kCpuTime )
-             r1.rlim_cur = kCpuTime;
-        result = setrlimit( RLIMIT_CPU, &r1 ); 
-        
-        if( result != 0 )
-        {
-            cout << "FAILED: rlimit error" << endl;
-            return 0;
-        }
+        LIMIT( RLIMIT_CPU, 2, 2 ); 
+        LIMIT( RLIMIT_FSIZE, 65535, 65535 );
+        LIMIT( RLIMIT_NOFILE, 24, 25 );
+        LIMIT( RLIMIT_NPROC, 4, 4 );
+        LIMIT( RLIMIT_MSGQUEUE, 0, 0 );
+        LIMIT( RLIMIT_LOCKS, 0, 0 );
+        LIMIT( RLIMIT_AS, 1024 * 1024 * 32, 1024 * 1024 * 64 );
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
         execlp(argv[0], argv[0], "RUN", NULL);
@@ -706,6 +724,22 @@ EOF
 
   [ "$RESULT" ] && message_post $RESPONSE "$RESULT" && return
   message_post $RESPONSE "$SENDER, No output."
+}
+
+run_insult(){
+  SENDER="$1"
+  RESPOND="$2"
+  shift 2
+
+  INSULT=$SENDER
+
+  [ "$1" ] && INSULT="$*"
+
+  QUIP=$($CURL_BIN http://www.randominsults.net 2>/dev/null | $GREP_BIN "<strong><i>\(.*\)</i></strong>" | $SED_BIN 's@<[^>]*>@@g' | $SED_BIN 's@&nbsp;@ @g' | $SED_BIN 's@^ *@@g' )
+
+  [ ! "$QUIP" ] && message_post $RESPOND "$SENDER, I am sorry, I cannot be insulting" && return
+
+  message_post $RESPOND "$INSULT, $QUIP"
 }
 
 run_rot13(){
@@ -916,6 +950,15 @@ handler_callback_tochan(){
     elif [ "${1:2}" == "weather" ]; then
       shift
       run_weather $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "oper" ]; then
+      shift
+      run_op $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "deop" ]; then
+      shift
+      run_deop $SENDER $CHANNEL $*
+    elif [ "${1:2}" == "insult" ]; then
+      shift
+      run_insult $SENDER $CHANNEL $*
     elif [ "${1:2}" == "compile" ]; then
       shift
       run_compile $SENDER $CHANNEL $*
@@ -982,9 +1025,10 @@ handler_callback_tochan(){
   fi
 
   if [ "$DRBOT" == "on" ]; then
-    if [ "$1" == ":${nick}" -o "$1" == ":$nick:" -o "$1" == ":$nick," ]; then
+    SAID_COMMA_IRCBOT=$(echo "$*" | $GREP_BIN -o -i ,\ ircbot)
+    if [ "$1" == ":${nick}" -o "$1" == ":$nick:" -o "$1" == ":$nick," -o "$SAID_COMMA_IRCBOT" ]; then
       shift
-      INPUTLINE=$(echo "$*" | $TR_BIN "[a-z]" "[A-Z]" | $SED_BIN 's/^/ /; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
+      INPUTLINE=$(echo "$*" | $TR_BIN "[a-z]" "[A-Z]" | $SED_BIN 's/^/ /; s/,/ /g; s/$/ /; s/\./ /g; s/ I / i /g; s/ I.M / i am /g; s/ YOU ARE/ you are/g; s/ AM / am /g; s/ ME / me /g; s/ YOU / you /g; s/ MY / my /g; s/ YOUR / your /g; s/ MINE / mine /g; s/ ARE / are /g; s/ me / YOU /g; s/ my / YOUR /g; s/ your / IRCBOTS /g; s/ i / YOU /g; s/ am / ARE /g;s/ mine / YOURS /g; s/ are / IS /; s/ you / IRCBOT /; s/^ //; s/ $//')
       #message_post $SENDER $INPUTLINE
       case "$INPUTLINE" in
         *YOU\ ARE\ *)
@@ -993,7 +1037,7 @@ handler_callback_tochan(){
         *YOU\ HAVE\ *)
             INPUTLINE=$(echo "${INPUTLINE}?" | $SED_BIN 's/^.*YOU\ HAVE/HOW LONG HAVE YOU HAD/')
             ;;
-        YOU\ REALIZED*|WHEN\ *|*WHEN\ *|*YOU\ REALIZED*)
+        YOU\ REALIZED*|WHEN\ *|*WHEN\ *|*YOU\ REALIZED*|*MOMENT\ AGO*|*MOMENT\ AGO)
             INPUTLINE=$(echo "${INPUTLINE}" | $SED_BIN 's/YOU REALIZED//g')
             INPUTLINE="interesting. did anything else happen ${INPUTLINE}?"
             ;;
@@ -1032,13 +1076,13 @@ handler_callback_tochan(){
         IS\ AWESOME|IS\ GOOD|IS\ GREAT)
             INPUTLINE="thank you"
             ;;
-        IS\ AWESOME\ AT*|IS\ GOOD\ AT*|IS\ GREAT\ AT*|IS\ GAY)
+        IS\ AWESOME\ AT*|IS\ GOOD\ AT*|IS\ GREAT\ AT*|IS\ *)
             INPUTLINE="i am not sure about that"
             ;;
         SUCKS\ AT*|STINKS\ AT*)
             INPUTLINE="i have no doubt this is correct"
             ;;
-        IRCBOT\ SUCKS|IRCBOT\ SUCKS*|*IRCBOT\ SUCKS*|*IRCBOT\ SUCKS|IS\ *|SUCKS*)
+        IRCBOT\ SUCKS|IRCBOT\ SUCKS*|*IRCBOT\ SUCKS*|*IRCBOT\ SUCKS|SUCKS*)
             INPUTLINE="and you are a ray of sunshine?"
             ;;
         YES*)
