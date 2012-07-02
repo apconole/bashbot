@@ -75,11 +75,12 @@ run_deop(){
 
   CHANNEL=$2
 
-  message_post $2 "When someone asks if you're a god..."
-
   [ "$3" ] && shift 2
 
   echo "MODE $CHANNEL -o $1"  
+
+  message_post $CHANNEL "When someone asks if you're a god..."
+
 }
 
 run_ping(){
