@@ -429,13 +429,14 @@ run_compile(){
 
   source compile_files.sh
 
-  HASMAIN=$(/bin/echo "$*" | $GREP_BIN -w -E "main")
-  USESRETURN=$(/bin/echo "$*" | $GREP_BIN -o "return[\t\n\r ]*[a-zA-Z0-9]*[\t\n\r ]*;[\t\n\r ]*}$")
+  COMPILE_TEXT=$(/bin/echo "$*" | $SED_BIN 's@\(#include[\r\n\t ]*<[a-zA-Z0-9\.]*>\)@\1\n@g')
+  HASMAIN=$(/bin/echo "${COMPILE_TEXT}" | $GREP_BIN -w -E "main")
+  USESRETURN=$(/bin/echo "${COMPILE_TEXT}" | $GREP_BIN -o "return[\t\n\r ]*[a-zA-Z0-9]*[\t\n\r ]*;[\t\n\r ]*}$")
 
   BADWORDS=( "ioctl" "signal" "sigaction" "syscall" "sysconf" )
 
   for badword in "${BADWORDS[@]}"; do
-    HASWORD=$(/bin/echo "$*" | $GREP_BIN -w -o "$badword")
+    HASWORD=$(/bin/echo "${COMPILE_TEXT}" | $GREP_BIN -w -o "$badword")
     if [ "${HASWORD}" ]; then
       message_post $RESPONSE "blocked app due to: [ $badword ]" 
       return
@@ -470,7 +471,7 @@ EOF
   fi
   
 
-  $(set -f && echo "$*" >> ${COUTFILE}.cc)
+  $(set -f && echo "${COMPILE_TEXT}" >> ${COUTFILE}.cc)
 
   if [ "$NEEDSTERM" == "true" ]; then
     [ "$USESRETURN" ] && $(echo "return 0; " >> ${COUTFILE}.cc)
