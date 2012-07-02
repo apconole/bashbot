@@ -81,6 +81,8 @@ write_ptrace_watcher() {
 #define REGISTER(a,b) a
 #endif
 
+#define WHITELIST_FILENAME 0x1
+
 using namespace std;
 
 extern int APP_TMP_MAIN_main();
@@ -89,15 +91,31 @@ struct syscalls_blocked
 {
   int syscall;
   char *errorcall;
+  unsigned long flags;
 } blocked[300], spied[300];
 
 #define STRINGIFY(a) STRING(#a)
 #define STRING(a) #a
 
-#define BLOCK_SYSCALL(a) { blocked[a].errorcall = #a ; blocked[a].syscall=a; }
-#define SPY_SYSCALL(a) { spied[a].errorcall = #a ; spied[a].syscall=a; }
+#define BLOCK_SYSCALL(a) { blocked[a].errorcall = #a ; blocked[a].syscall=a; blocked[a].flags = 0; }
+#define SPY_SYSCALL(a, flag) { spied[a].errorcall = #a ; spied[a].syscall=a; spied[a].flags = flag; }
 
 #define LIMIT(a, b, c) { rlimit kLimit; kLimit.rlim_cur = b; kLimit.rlim_max = c; if ( setrlimit( a, &kLimit ) < 0 ) { perror("setrlimit"); abort(); } }
+
+#define FILES_NUM 10
+
+char *files[FILES_NUM] = {
+ "/etc/ld.so.cache",
+ "/usr/lib/x86_64-linux-gnu/libstdc++.so.6",
+ "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+ "/lib/x86_64-linux-gnu/libc.so.6",
+ "/lib/x86_64-linux-gnu/libm.so.6",
+ 0, 0, 0, 0, 0
+};
+
+char *prefixed[FILES_NUM] = {
+ "/tmp/",
+ 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 int main(int argc, char *argv[])
 {
@@ -148,7 +166,7 @@ int main(int argc, char *argv[])
     BLOCK_SYSCALL(__NR_umount2);
     BLOCK_SYSCALL(__NR_reboot);
 
-    //SPY_SYSCALL(__NR_open);
+    SPY_SYSCALL(__NR_open, WHITELIST_FILENAME);
 
     if ( argc > 1 )
       return APP_TMP_MAIN_main();
@@ -212,14 +230,65 @@ int main(int argc, char *argv[])
            {
                user_regs_struct regs;
                ptrace(PTRACE_GETREGS, childID, NULL, &regs);
-               long arg1 = regs. REGISTER(ebx,rbx) ;
-               long arg2 = regs. REGISTER(ecx,rcx) ;
-               long arg3 = regs. REGISTER(edx,rdx) ;
-               long arg4 = regs. REGISTER(eax,rax) ;
-               cout << "Spy: " << spied[syscallnum].errorcall << hex
+               union 
+               {
+                   char wordData[sizeof(long)];
+                   long wordVal;
+               } prog_data;
+               unsigned long arg1 = regs. REGISTER(ebx,rdi) ;
+               unsigned long arg2 = regs. REGISTER(ecx,rsi) ;
+               unsigned long arg3 = regs. REGISTER(edx,rdx) ;
+               unsigned long arg4 = regs. REGISTER(esi,r10) ;
+               unsigned long arg5 = regs. REGISTER(edi,r9 ) ;
+               unsigned long arg6 = regs. REGISTER(ebp,r8 ) ;
+               if(0) cout << "Spy: " << spied[syscallnum].errorcall << hex
                     << " [ " << arg1 << " ], " << " [ " << arg2 << " ], "
                     << " [ " << arg3 << " ], " << " [ " << arg4 << " ], "
-                    << endl;
+                    << " [ " << arg5 << " ], " << " [ " << arg6 << " ], "
+                    << " [ " << syscallnum << " ]" << dec << endl;
+               if( arg1 && spied[syscallnum].flags == WHITELIST_FILENAME )
+               {
+                 std::string outData;
+                 uint32_t size_of_data = 0;
+                 uint32_t incr = 0;
+                 do
+                 {
+                   prog_data.wordVal = 
+                       ptrace(PTRACE_PEEKDATA, childID, 
+                                (void *)(arg1+(incr * sizeof(long))), NULL);
+                   for(size_of_data = 0; size_of_data < sizeof(long) && 
+                         prog_data.wordData[size_of_data]; 
+                         ++size_of_data)
+                      outData.push_back(
+                         prog_data.wordData[size_of_data]
+                      );
+                 
+                   if( size_of_data < sizeof(long) ) size_of_data = 0;
+                   ++incr;
+                 } while ( size_of_data );
+
+                 bool matched = false;
+                 for( incr = 0; !matched && incr < FILES_NUM; ++incr )
+                 {
+                   if( files[incr] && outData == files[incr] ) matched = true;
+
+                   if( prefixed[incr] && 
+                       outData.compare(0, strlen(prefixed[incr]), 
+                                       prefixed[incr]) == 0 &&
+                       outData.find_first_of("..") == std::string::npos )
+                        matched = true;
+                 }
+
+                 if( !matched )
+                 {
+                   cout << "killed - security protection on file access" 
+                        << endl;
+                   kill(childID, SIGKILL);
+                   exit(0);
+                   break;
+                   
+                }
+             }
            }
        }
        else

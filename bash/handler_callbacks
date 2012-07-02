@@ -1,5 +1,8 @@
 #!/bin/bash
 
+CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" )
+CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller )
+
 authenticated(){
   SENDER=$1
   RESPOND=$2
@@ -40,11 +43,66 @@ message_post(){
   msg_send "PRIVMSG $DESTINATION :$*"
 }
 
+run_explode(){
+  SENDER=$1
+  CHANNEL=$2
+
+  shift 2
+
+  [ ! "$1" ] && message_post $CHANNEL "Explode requires a URL dumbass" && return
+  URL=$(CURL_BIN -I -s "$1" | $GREP_BIN -f 'Location:' | $CUT_BIN -d" " -f2)
+  message_post $CHANNEL "Exploded url: $URL "
+}
+
+run_noop(){
+  echo ""
+}
+
+run_squelch(){
+  SENDER=$1
+  CHANNEL=$2
+  shift 2
+
+  authenticated $SENDER $CHANNEL RESULT
+  [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller (only controllers can squelch functions)" && return
+
+  LINK_STATE="linking"
+  sleep 10
+
+  message_post $CHANNEL "$SENDER - squelching not available"
+
+}
+
+run_link(){
+  SENDER=$1
+  CHANNEL=$2
+  shift 2
+
+  authenticated $SENDER $CHANNEL RESULT
+  [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller (only controllers can request link)" && return
+
+  LINK_STATE="linking"
+  sleep 10
+
+  message_post $CHANNEL "$SENDER - linking is not currently implemented"
+}
+
+run_uptime(){
+  SENDER=$1
+  DEST=$2
+  shift 2
+
+  UPTIME=$($UPTIME_BIN )
+
+  message_post $DEST "Uptime - $UPTIME"
+}
+
 run_weather(){
   SENDER=$1
   RESPOND=$2
 
   shift 2
+
   [ ! "$1" ] && message_post $RESPOND "Error - need a zip or city,state" && return
 
   WEATHER_REPORT=$($CURL_BIN "http://www.google.com/ig/api?weather=${1}&hl=en" | $SED_BIN 's/<forecast_conditions>.*//' | $SED_BIN 's/></>\n</g')
@@ -53,7 +111,9 @@ run_weather(){
   CONDITION=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<condition' | $SED_BIN -e 's/<condition data="//' -e 's/"\/>//')
   TEMP=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<temp_f' | $SED_BIN -e 's/<temp_f data="//' -e 's/"\/>//')
 
-  message_post $RESPOND "For [ $CITY ], temp [ $TEMP ], and [ $CONDITION ]"
+  [ "$CITY" ] && message_post $RESPOND "For [ $CITY ], temp [ $TEMP ], and [ $CONDITION ]" && return
+
+  message_post $RESPOND "No results for [ $* ]"
 }
 
 run_op(){
@@ -515,7 +575,7 @@ EOF
  
   $RM_BIN -f $COUTFILE $AOUTFILE $WARNFIL $OOUTFILE
 
-  [ "$RESULT" ] && message_post $RESPONSE "$RESULT" && return
+  [ "$RESULT" ] && message_post $RESPONSE "$RESULT" && debug "$RESULT" && return
   message_post $RESPONSE "$SENDER, No output."
 }
 
@@ -713,54 +773,22 @@ handler_callback_tochan(){
   shift 2
 
   if [ "${1:1:1}" == \! ]; then
-    if [ "${1:2}" == "uptime" ]; then
-      UPTIME=$(UPTIME_BIN)
-      message_post $CHANNEL "$UPTIME"
-    elif [ "${1:2}" == "explode" ]; then
-      [ ! "$2" ] && message_post $CHANNEL "Explode requires a URL dumbass" && return
-      URL=$(CURL_BIN -I -s "$2" | $GREP_BIN -f 'Location:' | $CUT_BIN -d" " -f2)
-      message_post $CHANNEL "Exploded url: $URL "
-    elif [ "${1:2}" == "keywords" ]; then
+
+    I=0
+    COMMAND="${1:2}"
+
+    for found in "${CHANNEL_COMMANDS[@]}"; do
+      if [ "$COMMAND" == "$found" ]; then
+        shift
+        debug "Running $COMMAND at $I index [ $* ] "
+        ${CHANNEL_FUNCTIONS[${I}]} $SENDER $CHANNEL $*
+        return
+      fi
+      ((I = $I + 1))
+    done
+
+    if [ "${1:2}" == "keywords" ]; then
       message_post $CHANNEL "Recognized keywords [ ${KEYWORDS[@]} ]"
-    elif [ "${1:2}" == "keyword" ]; then
-      shift
-      run_keyword $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "silly" ]; then
-      shift
-      run_randsentence $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "ticker" ]; then
-      shift
-      run_ticker $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "controller" ]; then
-      shift
-      run_controller $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "shorten" ]; then
-      shift
-      run_shorten $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "join" ]; then
-      shift
-      run_join $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "weather" ]; then
-      shift
-      run_weather $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "oper" ]; then
-      shift
-      run_op $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "deop" ]; then
-      shift
-      run_deop $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "insult" ]; then
-      shift
-      run_insult $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "compile" ]; then
-      shift
-      run_compile $SENDER $CHANNEL $*
-    elif [ "${1:2}" == "rot13" ]; then
-      shift
-      run_rot13 $SENDER $CHANNEL "$*"
-    elif [ "${1:2}" == "exploitdb" ]; then
-      shift
-      run_exploit_search $SENDER $CHANNEL "$*"
     elif [ "${1:2}" == "doctor" ]; then
       [ ! "${2}" ] && message_post $CHANNEL "Doctor is ${DRBOT}" && return
       authenticated $SENDER $CHANNEL RESULT
@@ -769,19 +797,7 @@ handler_callback_tochan(){
       [ "${2}" == "off" ] && DRBOT="off" && message_post $CHANNEL "Dr - $DRBOT" && return
       message_post $CHANNEL "I only understand on/off"
     elif [ "${1:2}" == "help" ]; then
-      message_post $CHANNEL "I understand any of [uptime|explode|keywords|keyword|controller|shorten|join|part|compile|rot13|doctor|quit]"
-    elif [ "${1:2}" == "part" ]; then
-      shift
-      run_part $SENDER $CHANNEL $CHANNEL
-    elif [ "${1:2}" == "facebook" ]; then
-      shift
-      message_post $CHANNEL "Facebook: because even when you're taking a crap, you need ignorant political discussion"
-    elif [ "${1:2}" == "google" ]; then
-      shift
-      run_google $SENDER $CHANNEL $@
-    elif [ "${1:2}" == "quit" ]; then
-      shift
-      run_quit $SENDER $CHANNEL "$*"
+      message_post $CHANNEL "I understand any of [ ${CHANNEL_COMMANDS[@]} ]"
     fi
 
     return
