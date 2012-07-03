@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" )
-CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller )
+CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" "roll" )
+CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller run_roll )
 
 authenticated(){
   SENDER=$1
@@ -41,6 +41,37 @@ message_post(){
   DESTINATION=$1
   shift
   msg_send "PRIVMSG $DESTINATION :$*"
+}
+
+run_roll(){
+  SENDER=$1
+  CHANNEL=$2
+
+  shift 2
+
+  params="$1"
+  if [[ $params =~ ^([0-9]+)d([0-9]+)$ ]]; then
+    num_dice="${BASH_REMATCH[1]}"
+    num_sides="${BASH_REMATCH[1]}"
+    if [ $num_sides -lt 2 -o $num_sides -gt 99 ]; then
+       message_post $CHANNEL "$SENDER, bad number of sides"
+       return
+    fi
+    if [ $num_dice -lt 1 -o $num_dice -gt 100 ]; then
+      message_post $CHANNEL "$SENDER, bad number of dice"
+      return
+    fi
+    local roll_result=0
+    for (( i=0; $i < $num_dice; i+=1 )); do
+       local out=0
+       random_number $num_sides out
+       ((roll_result = $roll_result + $out ))
+    done
+    message_post $CHANNEL "You rolled $roll_result"
+    return
+  fi
+
+  message_post $CHANNEL "roll needs to look like: !roll [0-9]+d[0-9]+"
 }
 
 run_explode(){
