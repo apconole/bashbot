@@ -21,6 +21,7 @@ write_ccfile_preamble() {
 #include <list>
 #include <set>
 #include <sstream>
+#include <fstream>
 #include <stack>
 
 using namespace std;
