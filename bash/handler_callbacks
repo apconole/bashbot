@@ -52,7 +52,7 @@ run_roll(){
   params="$1"
   if [[ $params =~ ^([0-9]+)d([0-9]+)$ ]]; then
     num_dice="${BASH_REMATCH[1]}"
-    num_sides="${BASH_REMATCH[1]}"
+    num_sides="${BASH_REMATCH[2]}"
     if [ $num_sides -lt 2 -o $num_sides -gt 99 ]; then
        message_post $CHANNEL "$SENDER, bad number of sides"
        return
