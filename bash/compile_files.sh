@@ -107,11 +107,26 @@ struct syscalls_blocked
 
 char *files[FILES_NUM] = {
  "/etc/ld.so.cache",
+#ifdef __x86_64__
  "/usr/lib/x86_64-linux-gnu/libstdc++.so.6",
  "/lib/x86_64-linux-gnu/libgcc_s.so.1",
  "/lib/x86_64-linux-gnu/libc.so.6",
  "/lib/x86_64-linux-gnu/libm.so.6",
- 0, 0, 0, 0, 0
+ "/usr/lib64/libstdc++.so.6", 
+ "/lib64/libm.so.6", 
+ "/lib64/libgcc_s.so.1", 
+ "/lib64/libc.so.6", 0
+#else
+ "/lib/i686-linux-gnu/libgcc_s.so.1",
+ "/lib/i686-linux-gnu/libc.so.6",
+ "/lib/i686-linux-gnu/libm.so.6",
+ "/usr/lib/i686-linux-gnu/libstdc++.so.6",
+ "/usr/lib/libstdc++.so.6",
+ "/lib/libc.so.6",
+ "/lib/libgcc_s.so.1",
+ "/lib/libm.so.6",
+ 0
+#endif
 };
 
 char *prefixed[FILES_NUM] = {
@@ -132,13 +147,15 @@ int main(int argc, char *argv[])
     BLOCK_SYSCALL(__NR_rt_sigprocmask);
     BLOCK_SYSCALL(__NR_rt_sigreturn);
     BLOCK_SYSCALL(__NR_ioctl);
+#ifdef __x86_64__
     BLOCK_SYSCALL(__NR_shmget);
     BLOCK_SYSCALL(__NR_shmat);
     BLOCK_SYSCALL(__NR_shmctl);
-    BLOCK_SYSCALL(__NR_setitimer);
     BLOCK_SYSCALL(__NR_socket);
-    BLOCK_SYSCALL(__NR_sendfile);
     BLOCK_SYSCALL(__NR_semget);
+#endif
+    BLOCK_SYSCALL(__NR_setitimer);
+    BLOCK_SYSCALL(__NR_sendfile);
     BLOCK_SYSCALL(__NR_creat);
     BLOCK_SYSCALL(__NR_rmdir);
     BLOCK_SYSCALL(__NR_link);
