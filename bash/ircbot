@@ -1,34 +1,6 @@
 #!/bin/bash
-
-CURL_BIN=$(/usr/bin/which curl)
-TAIL_BIN=$(/usr/bin/which tail)
-UPTIME_BIN=$(/usr/bin/which uptime)
-SED_BIN=$(/usr/bin/which sed)
-GREP_BIN=$(/usr/bin/which grep)
-CUT_BIN=$(/usr/bin/which cut)
-PING_BIN=$(/usr/bin/which ping)
-MKTEMP_BIN=$(/usr/bin/which mktemp)
-RM_BIN=$(/usr/bin/which rm)
-CAT_BIN=$(/usr/bin/which cat)
-NOHUP_BIN=$(/usr/bin/which nohup)
-CHMOD_BIN=$(/usr/bin/which chmod)
-TR_BIN=$(/usr/bin/which tr)
-UNAME_BIN=$(/usr/bin/which uname)
-ID_BIN=$(/usr/bin/which id)
-CXX=$(/usr/bin/which g++)
-
-# These are for your protection
-GCC_FLAGS="-finput-charset=UTF-8 -O2 -std=c++0x -pedantic-errors -Wfatal-errors -Wall -Wextra -Wno-empty-body -Wno-missing-field-initializers -Wwrite-strings -Wno-deprecated -Wno-unused -Wno-non-virtual-dtor -Wno-variadic-macros -fmessage-length=0 -ftemplate-depth-128 -fno-merge-constants -fno-nonansi-builtins -fno-gnu-keywords -fno-elide-constructors -fstrict-aliasing -fstack-protector-all -Winvalid-pch -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_GLIBCXX_CONCEPT_CHECKS"
-#GCC_FLAGS="-finput-charset=UTF-8 -O2 -std=c++0x -pedantic-errors -Wfatal-errors -Wall -Wextra -Wno-empty-body -Wno-missing-field-initializers -Wwrite-strings -Wno-deprecated -Wno-unused -Wno-non-virtual-dtor -Wno-variadic-macros -fmessage-length=0 -ftemplate-depth-128 -fno-merge-constants -fno-linker-plugin -fno-nonansi-builtins -fno-gnu-keywords -fno-elide-constructors -fstrict-aliasing -fstack-protector-all -Winvalid-pch -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_GLIBCXX_CONCEPT_CHECKS"
-
-#
-# configuration
-
-nick="`basename $0`"	# nickname
-name="$0"		# real name
-chan="#bashbot"		# channels to join
-mode="+i"		# irc mode
-
+# begin configuration
+[ -e configuration ] && source configuration
 # end of configuration
 # use our login name if there's no nickname
 nick="${nick:-$USER}"

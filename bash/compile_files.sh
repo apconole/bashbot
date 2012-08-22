@@ -103,10 +103,12 @@ struct syscalls_blocked
 
 #define LIMIT(a, b, c) { rlimit kLimit; kLimit.rlim_cur = b; kLimit.rlim_max = c; if ( setrlimit( a, &kLimit ) < 0 ) { perror("setrlimit"); abort(); } }
 
-#define FILES_NUM 10
+#define FILES_NUM 12
 
 char *files[FILES_NUM] = {
  "/etc/ld.so.cache",
+ "/dev/null",
+ "/dev/urandom",
 #ifdef __x86_64__
  "/usr/lib/x86_64-linux-gnu/libstdc++.so.6",
  "/lib/x86_64-linux-gnu/libgcc_s.so.1",
@@ -131,7 +133,7 @@ char *files[FILES_NUM] = {
 
 char *prefixed[FILES_NUM] = {
  "/tmp/",
- 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 int main(int argc, char *argv[])
 {
