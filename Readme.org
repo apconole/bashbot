@@ -1,0 +1,93 @@
+#+OPTIONS: H:nil
+
+* Introduction
+
+This is a simple bash IRC bot which I wrote to mess around with the /dev/tcp 
+capability introduced on the Ubuntu version of bash with 9.10 (yes, yes, I use
+Ubuntu - get over it)
+
+* License
+
+Free as in I don't care. Do what you want with it.
+
+* Starting the bot
+
+Run:
+> name='botname' chan='first' ./bash/ircbot owner server portnum
+
+Where botname, first, owner, server, and portnum are filled in appropriately.
+
+* Communicating with the bot
+
+The bot can either respond to private messages, or to messages in chat. In either
+case, the same list of commands is handled (and generally requires a ! at the
+beginning).
+
+* Features
+
+The following are the features available in the irc bot
+
+** Authentication
+
+The bot can be configured with an authentication regime to allow only those members
+of channels who know the authentication token to control aspects of the bot.
+
+See *run_controller* in =bash/handler_callbacks= for information on how to 
+dynamically edit this list. 
+
+When starting the IRC bot, the first argument is the username of the first 
+controller allowed to control the bot.
+
+** Channel management
+
+The bot includes some basic 'op/deop' facilities. Again, see 
+=bash/handler_callbacks= for the complete list (in the keywords list at the top of
+the file).
+
+Additionally, using join and part, the bot can be told to join and leave other
+channels.
+
+The bot will default to joining the list of channels (space separated) specified in
+the *$chan* environment variable.
+
+** Compilation
+
+The bot includes a facility similar to [[http://www.eelis.net/geordi][Geordi]] that allows channel members to ask it
+to evaluate C/C++ code. This is really only a usable feature on Linux (see the 
+paragraph after the next for information).
+
+In general, this is *UNSAFE* to do, as _ANYONE_ who has access to your bot can run
+arbitrary code. As such, only /authenticated/ users are allowed to invoke 
+compilation (see the *AUTHENTICATED_COMPILE* configuration in 
+=bash/handler_callbacks=.
+
+Even with that, the IRC Bot does it's best to protect the user from bad programs by
+restricting access to classes of system calls. See =bash/compile_files.sh= for the
+full list. Know that, at least on a Linux, the bot has been fairly well protected
+from all sorts of denial of service attacks. That doesn't mean it is 
+unexploitable (I haven't touched it in a while), just that it should be safer out
+of the box than if you wrote your own.
+
+** ELISA Chat
+
+The bot includes a fairly naive chat bot. Go ahead and mess with it; found in
+=bash/handler_callbacks= at the bottom. Only an 'authenticated' user may 
+enable/disable the bot, by using the "doctor" command.
+
+** Exploding and contracting links, other web goodies
+
+The bot includes some web related goodies, including exploding / contracting links,
+writing insults, querying finance information, and running basic google searches.
+
+All functions are declared in the *CHANNEL_COMMANDS* in =bash/handler_callbacks= 
+(notice a pattern?) and map to a function in *CHANNEL_FUNCTIONS*
+
+** Dangerous stuff
+
+I advise always reading sources before just deploying things. At one point, I was
+building in a reverse shell server (see *run_reverseshell* for more information) to
+backdoor a work computer because they didn't allow reverse ssh tunnels (think of 
+the horror!) so I couldn't work from home. I switched to a git based project, and
+haven't really debugged or messed around with it much. I wouldn't turn on the
+*ALLOW_REVERSE_SHELL* variable, unless you don't care about the machine you're
+running on.
