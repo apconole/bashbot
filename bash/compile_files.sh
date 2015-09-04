@@ -103,7 +103,7 @@ struct syscalls_blocked
 
 #define LIMIT(a, b, c) { rlimit kLimit; kLimit.rlim_cur = b; kLimit.rlim_max = c; if ( setrlimit( a, &kLimit ) < 0 ) { perror("setrlimit"); abort(); } }
 
-#define FILES_NUM 12
+#define FILES_NUM 13
 
 char *files[FILES_NUM] = {
  "/etc/ld.so.cache",
@@ -117,7 +117,9 @@ char *files[FILES_NUM] = {
  "/usr/lib64/libstdc++.so.6", 
  "/lib64/libm.so.6", 
  "/lib64/libgcc_s.so.1", 
- "/lib64/libc.so.6", 0
+ "/lib64/libc.so.6",
+ "/lib64/libstdc++.so.6", 
+ 0
 #else
  "/lib/i686-linux-gnu/libgcc_s.so.1",
  "/lib/i686-linux-gnu/libc.so.6",
@@ -127,6 +129,7 @@ char *files[FILES_NUM] = {
  "/lib/libc.so.6",
  "/lib/libgcc_s.so.1",
  "/lib/libm.so.6",
+ "/lib/libstdc++.so.6",
  0
 #endif
 };
@@ -302,6 +305,7 @@ int main(int argc, char *argv[])
                  if( !matched )
                  {
                    cout << "killed - security protection on file access" 
+                        << "{" << outData << "}"
                         << endl;
                    kill(childID, SIGKILL);
                    exit(0);
