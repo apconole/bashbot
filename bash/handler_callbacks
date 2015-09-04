@@ -944,7 +944,7 @@ handler_callback_tochan(){
             ;;
       esac
       SEDLINE="s/ircbot/${nick}/g"
-      INPUTLINE=$(echo "$INPUTLINE" | $TR_BIN "[A-Z]" "[a-z]" | $SED_BIN $SEDLINE | $SED_BIN 's/yourself/klarself/g' | $SED_BIN 's/myself/yourself/g' | $SED_BIN 's/klarself/myself/g' )
+      INPUTLINE=$(echo "$INPUTLINE" | $TR_BIN "[A-Z]" "[a-z]" | $SED_BIN $SEDLINE | $SED_BIN 's/yourself/klarself/g' | $SED_BIN 's/myself/yourself/g' | $SED_BIN 's/klarself/yourself/g' )
       message_post $CHANNEL "$SENDER, $INPUTLINE"
     fi
   fi
