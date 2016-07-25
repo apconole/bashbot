@@ -43,6 +43,40 @@ message_post(){
   msg_send "PRIVMSG $DESTINATION :$*"
 }
 
+run_log(){
+  SENDER=$1
+  CHANNEL=$2
+  shift 2
+
+  if X"$LOG_CHANNELS" != "Xyes" ; then
+    return
+  fi
+
+  if [ ! -e "$CHANNEL.db" ]; then
+    debug "No channel for $CHANNEL exists.. creating"
+    sqlite3 "$CHANNEL.db" <<EOF
+CREATE TABLE IF NOT EXISTS messages (
+    sender TEXT NOT NULL,
+    message TEXT NOT NULL,
+    isaction INTEGER DEFAULT 0,
+    currentdate TEXT NOT NULL
+);
+EOF
+    if [ ! -e "$CHANNEL.db" ]; then
+      return
+    fi
+  fi
+
+  debug "Logging"
+  sqlite3 "$CHANNEL.db" 2>sqlite-errors >&2 <<EOF
+INSERT INTO messages(sender, message, isaction, currentdate)
+VALUES
+ ("$SENDER", "$*", 0, DATETIME('now', 'localtime'));
+EOF
+  debug "Logged"
+
+}
+
 run_roll(){
   SENDER=$1
   CHANNEL=$2
@@ -810,6 +844,8 @@ handler_callback_tochan(){
   CHANNEL="$2"
 
   shift 2
+
+  run_log "$SENDER" "$CHANNEL" "$*"
 
   if [ "${1:1:1}" == \! ]; then
 
