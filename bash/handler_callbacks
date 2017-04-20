@@ -477,11 +477,11 @@ run_keyword(){
 run_shorten(){
    [ ! "$3" ] && message_post $2 "Unable to shorten blank url" && return
 
-   URL="http://is.gd/api.php?longurl=$3"
-   RESULT=$($CURL_BIN $URL)
+   URL="https://is.gd/create.php?format=simple&url=$3"
+   RESULT=$($CURL_BIN -s $URL)
+
    message_post $2 "Shortened [ $RESULT ]"
 }
-
 
 #GCC_FLAGS="-w"
 
@@ -531,8 +531,8 @@ run_ticker(){
   shift 2
 
   [ ! "$1" ] && message_post $CHANNEL "Requires a ticker symbol"
-  TICKERNAME=$($CURL_BIN -s "http://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=n")
-  TICKERPRICE=$($CURL_BIN -s "http://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=l1")
+  TICKERNAME=$($CURL_BIN -s "https://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=n")
+  TICKERPRICE=$($CURL_BIN -s "https://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=l1")
 
   message_post $CHANNEL "Ticker [ ${TICKERNAME} ] value [ ${TICKERPRICE} ]"
 }
