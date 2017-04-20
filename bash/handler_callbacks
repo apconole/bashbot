@@ -531,8 +531,8 @@ run_ticker(){
   shift 2
 
   [ ! "$1" ] && message_post $CHANNEL "Requires a ticker symbol"
-  TICKERNAME=$($CURL_BIN "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | $GREP_BIN time_rtq_ticker | cut -d\" -f17 | cut -d"<" -f2 | cut -d">" -f2)
-  TICKERPRICE=$($CURL_BIN "http://finance.yahoo.com/q?s=${1}&ql=1" 2>/dev/null | $GREP_BIN time_rtq_ticker | cut -d\" -f27 | cut -d"<" -f1 | cut -d">" -f2)
+  TICKERNAME=$($CURL_BIN -s "http://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=n")
+  TICKERPRICE=$($CURL_BIN -s "http://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=l1")
 
   message_post $CHANNEL "Ticker [ ${TICKERNAME} ] value [ ${TICKERPRICE} ]"
 }
