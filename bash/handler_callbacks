@@ -932,10 +932,18 @@ handler_callback_tochan(){
 
   if [ "$KARMA_PRE_INC" != "" -o "$KARMA_POST_INC" != "" ]; then
       USER="${KARMA_PRE_INC}${KARMA_POST_INC}"
-      karma_command "++" "$USER"
+      if [ "$USER" != "$SENDER" ]; then
+          karma_command "++" "$USER"
+      else
+          message_post $CHANNEL "Sorry, $SENDER but karma does not come from within"
+      fi
   elif [ "$KARMA_PRE_DEC" != "" -o "$KARMA_POST_DEC" != "" ]; then
       USER="${KARMA_PRE_DEC}${KARMA_POST_DEC}"
-      karma_command "--" "$USER"
+      if [ "$USER" != "$SENDER" ]; then
+          karma_command "--" "$USER"
+      else
+          message_post $CHANNEL "Sorry, $SENDER but karma does not come from within"
+      fi
   elif [ "$KARMA_QUERY" != "" ]; then
       karma_command "get" "$KARMA_QUERY"
   fi
