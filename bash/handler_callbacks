@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" "roll" )
-CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller run_roll )
+CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" "roll" "karma" )
+CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller run_roll run_karma )
 
 authenticated(){
   SENDER=$1
@@ -41,6 +41,20 @@ message_post(){
   DESTINATION=$1
   shift
   msg_send "PRIVMSG $DESTINATION :$*"
+}
+
+source karma.sh
+
+run_karma(){
+    SENDER=$1
+    CHANNEL=$2
+
+    shift 2
+
+    authenticated $SENDER $CHANNEL RESULT
+    [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller (only controllers can directly alter karma)" && return
+
+    karma_command $*
 }
 
 run_log(){
@@ -906,6 +920,24 @@ handler_callback_tochan(){
         fi
         (( I=$I+1 ))
       done
+  fi
+
+  KARMA_PRE_INC=$(echo "$*" | egrep -o "\+\+([a-zA-Z0-9_^@]+)" | tr -d '+')
+  KARMA_POST_INC=$(echo "$*" | egrep -o "([a-zA-Z0-9_^@]+)\+\+" | tr -d '+')
+
+  KARMA_PRE_DEC=$(echo "$*" | egrep -o "--([a-zA-Z0-9_^@]+)" | tr -d '-')
+  KARMA_POST_DEC=$(echo "$*" | egrep -o "([a-zA-Z0-9_^@]+)--" | tr -d '-')
+
+  KARMA_QUERY=$(echo "$*" | egrep -o "([a-zA-Z0-9_^@]+)==?" | tr -d '=?')
+
+  if [ "$KARMA_PRE_INC" != "" -o "$KARMA_POST_INC" != "" ]; then
+      USER="${KARMA_PRE_INC}${KARMA_POST_INC}"
+      karma_command "++" "$USER"
+  elif [ "$KARMA_PRE_DEC" != "" -o "$KARMA_POST_DEC" != "" ]; then
+      USER="${KARMA_PRE_DEC}${KARMA_POST_DEC}"
+      karma_command "--" "$USER"
+  elif [ "$KARMA_QUERY" != "" ]; then
+      karma_command "get" "$KARMA_QUERY"
   fi
 
   if [ "$DRBOT" == "on" ]; then
