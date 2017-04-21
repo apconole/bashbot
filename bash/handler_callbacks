@@ -51,8 +51,10 @@ run_karma(){
 
     shift 2
 
-    authenticated $SENDER $CHANNEL RESULT
-    [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller (only controllers can directly alter karma)" && return
+    if [ "$1" != "get" ]; then
+      authenticated $SENDER $CHANNEL RESULT
+      [ ${RESULT} -eq 0 ] && message_post $1 "You are not a controller (only controllers can directly alter karma)" && return
+    fi
 
     karma_command $*
 }

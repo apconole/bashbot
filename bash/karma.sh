@@ -62,7 +62,7 @@ karma_command() {
     if [ "$CMD" == "get" ]; then
         [ "$1" == "" ] && message_post $CHANNEL "Please provide a <thing>" \
             && return
-        karma_db_get $CHANNEL $1 out
+        karma_db_get $CHANNEL $1 score
     elif [ "$CMD" == "set" ]; then
         [ "$1" == "" ] && message_post $CHANNEL "Please provide a <thing>" \
             && return
