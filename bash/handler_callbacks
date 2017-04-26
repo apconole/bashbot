@@ -924,13 +924,13 @@ handler_callback_tochan(){
       done
   fi
 
-  KARMA_PRE_INC=$(echo "$*" | egrep -o "\+\+([a-zA-Z0-9_^@]+)" | tr -d '+')
-  KARMA_POST_INC=$(echo "$*" | egrep -o "([a-zA-Z0-9_^@]+)\+\+" | tr -d '+')
+  KARMA_PRE_INC=$(echo "$*" | egrep -o "\+\+([-a-zA-Z0-9_^@]+)" | tr -d '+')
+  KARMA_POST_INC=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)\+\+" | tr -d '+')
 
-  KARMA_PRE_DEC=$(echo "$*" | egrep -o -- "--([a-zA-Z0-9_^@]+)" | tr -d '-')
-  KARMA_POST_DEC=$(echo "$*" | egrep -o "([a-zA-Z0-9_^@]+)--" | tr -d '-')
+  KARMA_PRE_DEC=$(echo "$*" | egrep -o -- "--([-a-zA-Z0-9_^@]+)" | tr -d '-')
+  KARMA_POST_DEC=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)--" | tr -d '-')
 
-  KARMA_QUERY=$(echo "$*" | egrep -o "([a-zA-Z0-9_^@]+)==\?" | tr -d '=?')
+  KARMA_QUERY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)==\?" | tr -d '=?')
 
   if [ "$KARMA_PRE_INC" != "" -o "$KARMA_POST_INC" != "" ]; then
       USER="${KARMA_PRE_INC}${KARMA_POST_INC}"
