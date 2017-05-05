@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" "roll" "karma" )
-CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller run_roll run_karma )
+CHANNEL_COMMANDS=( "link" "squelch" "uptime" "explode" "shorten" "ticker" "insult" "google" "exploitdb" "weather" "compile" "rot13" "silly" "oper" "deop" "join" "part" "quit" "keyword" "controller" "roll" "karma" "compliment" )
+CHANNEL_FUNCTIONS=( run_link run_squelch run_uptime run_explode run_shorten run_ticker run_insult run_google run_exploit_search run_weather run_compile run_rot13 run_randsentence run_op run_deop run_join run_part run_quit run_keyword run_controller run_roll run_karma run_compliment )
 
 authenticated(){
   SENDER=$1
@@ -317,6 +317,26 @@ run_randsentence(){
   random_number ${#ADJECTIVE[@]} GET_ADJECTIVE
 
   message_post $2 "$1: ${BEGINNING[$GET_BEGINNING]} ${NOUN[$GET_NOUN]} ${VERB[$GET_VERB]} ${ADJECTIVE[$GET_ADJECTIVE]} ${NOUN[$GET_ANOTHER_NOUN]}"
+}
+
+run_compliment(){
+    [ ! "$COMPLIMENTS" ] && COMPLIMENTS=$(curl -q http://www.complimentgenerator.co.uk/ 2>/dev/null | grep p\ class | egrep -v 'class="(brand|sent|copyright)"' | sed -e 's@</p>@\\n@' -e 's@\s*<p class=".*">@@' -e "s@&#039;@'@g")
+    [ ! "$COMPLIMENTS" ] && message_post $2 "Sorry, $1 - I cannot send compliments at this time"
+
+    if [ ! "$3" ]; then
+        COMPLIMENTEE="$1"
+    else
+        COMPLIMENTEE="$3"
+    fi
+
+    SIZE_OF_COMPLIMENTS=$(echo $COMPLIMENTS | sed -e 's@\\n@\
+@g' | wc -l)
+    random_number $SIZE_OF_COMPLIMENTS COMPLIMENT
+
+    COMPLIMENT_TEXT=$(echo $COMPLIMENTS | sed -e 's@\\n@\
+@g' | head -n $COMPLIMENT | tail -n 1)
+
+    message_post $2 "$COMPLIMENTEE, $COMPLIMENT_TEXT"
 }
 
 run_nick(){
