@@ -77,6 +77,14 @@ karma_command() {
         karma_db_get $CHANNEL $1 score
         score=$((score-1))
         karma_db_set $CHANNEL $1 $score
+    elif [ "$CMD" == "+=" ]; then
+        karma_db_get $CHANNEL $1 score
+        score=$((score+$2))
+        karma_db_set $CHANNEL $1 $score
+    elif [ "$CMD" == "-=" ]; then
+        karma_db_get $CHANNEL $1 score
+        score=$((score-$2))
+        karma_db_set $CHANNEL $1 $score
     else
         message_post $CHANNEL "unknown karma command"
     fi

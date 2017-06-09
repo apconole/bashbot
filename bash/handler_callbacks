@@ -944,6 +944,11 @@ handler_callback_tochan(){
       done
   fi
 
+  KARMA_MODIFY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)\+=[0-9]+" | sed -e 's@+=@ += @')
+  if [ "$KARMA_MODIFY" == "" ]; then
+      KARMA_MODIFY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)-=[0-9]+" | sed -e 's@-=@ -= @')
+  fi
+
   KARMA_PRE_INC=$(echo "$*" | egrep -o "\+\+([-a-zA-Z0-9_^@]+)" | tr -d '+')
   KARMA_POST_INC=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)\+\+" | tr -d '+')
 
@@ -968,6 +973,15 @@ handler_callback_tochan(){
       fi
   elif [ "$KARMA_QUERY" != "" ]; then
       karma_command "get" "$KARMA_QUERY"
+  elif [ "$KARMA_MODIFY" != "" ]; then
+      USER=$(echo "$KARMA_MODIFY" | cut -d" " -f1)
+      CMD=$(echo "$KARMA_MODIFY" | cut -d" " -f2)
+      VAL=$(echo "$KARMA_MODIFY" | cut -d" " -f3)
+      if [ "$USER" != "$SENDER" ]; then
+          karma_command $CMD $USER $VAL
+      else
+          message_post $CHANNEL "Sorry, $SENDER but karma does not come from within"
+      fi
   fi
 
   if [ "$DRBOT" == "on" ]; then
