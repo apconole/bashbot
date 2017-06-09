@@ -944,9 +944,9 @@ handler_callback_tochan(){
       done
   fi
 
-  KARMA_MODIFY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)\+=[0-9]+" | sed -e 's@+=@ += @')
+  KARMA_MODIFY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)\+=(\+|-|0x)?[0-9]+" | sed -e 's@+=@ += @')
   if [ "$KARMA_MODIFY" == "" ]; then
-      KARMA_MODIFY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)-=[0-9]+" | sed -e 's@-=@ -= @')
+      KARMA_MODIFY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)-=(\+|-|0x)?[0-9]+" | sed -e 's@-=@ -= @')
   fi
 
   KARMA_PRE_INC=$(echo "$*" | egrep -o "\+\+([-a-zA-Z0-9_^@]+)" | tr -d '+')
