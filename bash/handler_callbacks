@@ -957,7 +957,6 @@ handler_callback_tochan(){
   KARMA_PRE_INC=$(echo "$*" | egrep -o "\+\+([-a-zA-Z0-9_^@]+)" | tr -d '+')
   KARMA_POST_INC=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)\+\+" | tr -d '+')
 
-  KARMA_PRE_DEC=$(echo "$*" | egrep -o -- "--([-a-zA-Z0-9_^@]+)" | tr -d '-')
   KARMA_POST_DEC=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)--" | tr -d '-')
 
   KARMA_QUERY=$(echo "$*" | egrep -o "([-a-zA-Z0-9_^@]+)==\?" | tr -d '=?')
@@ -969,8 +968,8 @@ handler_callback_tochan(){
       else
           message_post $CHANNEL "Sorry, $SENDER but karma does not come from within"
       fi
-  elif [ "$KARMA_PRE_DEC" != "" -o "$KARMA_POST_DEC" != "" ]; then
-      USER="${KARMA_PRE_DEC}${KARMA_POST_DEC}"
+  elif [ "$KARMA_POST_DEC" != "" ]; then
+      USER="${KARMA_POST_DEC}"
       if [ "$USER" != "$SENDER" ]; then
           karma_command "--" "$USER"
       else
