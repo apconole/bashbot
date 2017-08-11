@@ -130,7 +130,7 @@ run_explode(){
 
   shift 2
 
-  [ ! "$1" ] && message_post $CHANNEL "Explode requires a URL dumbass" && return
+  [ ! "$1" ] && message_post $CHANNEL "Explode requires a URL, and un-shrinks it" && return
   URL=$($CURL_BIN -I -s "$1" | $GREP_BIN -F 'Location:' | $CUT_BIN -d" " -f2)
   message_post $CHANNEL "Exploded url: $URL "
 }
