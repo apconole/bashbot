@@ -186,11 +186,11 @@ run_weather(){
 
   [ ! "$1" ] && message_post $RESPOND "Error - need a zip or city,state" && return
 
-  WEATHER_REPORT=$($CURL_BIN "http://www.google.com/ig/api?weather=${1}&hl=en" | $SED_BIN 's/<forecast_conditions>.*//' | $SED_BIN 's/></>\n</g')
+  WEATHER_REPORT=$($CURL_BIN "wttr.in/${1}" 2>/dev/null)
 
-  CITY=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<city' | $SED_BIN -e 's/<city data="//' -e 's/"\/>//')
-  CONDITION=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<condition' | $SED_BIN -e 's/<condition data="//' -e 's/"\/>//')
-  TEMP=$(echo "$WEATHER_REPORT" | $GREP_BIN -e '<temp_f' | $SED_BIN -e 's/<temp_f data="//' -e 's/"\/>//')
+  CITY=$(echo "$WEATHER_REPORT" | head -n1 | $SED_BIN -e 's@^Weather report: @@')
+  CONDITION=$(echo "$WEATHER_REPORT" | head -n 3 | tail -n1 | $SED_BIN -e 's@^.*\[0m\s*@@')
+  TEMP=$(echo "$WEATHER_REPORT" | head -n4 | tail -n1 | $SED_BIN -e "s,\x1B\[[0-9;]*[a-zA-Z],,g" | $GREP_BIN -E -o '[0-9]+(-[0-9]+)?\s*°(F|C|K)')
 
   [ "$CITY" ] && message_post $RESPOND "For [ $CITY ], temp [ $TEMP ], and [ $CONDITION ]" && return
 
