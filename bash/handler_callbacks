@@ -630,12 +630,12 @@ run_compile(){
     if [ "$USESRETURN" ]; then
       $CAT_BIN >> ${COUTFILE}.cc <<EOF
 
-int main()
+int main(int argc, char *argv[])
 EOF
     else
       $CAT_BIN >> ${COUTFILE}.cc <<EOF
 
-void main()
+void main(int argc, char *argv[])
 EOF
     fi
     [ "${1:0:1}" != "{" ] && $(echo "{" >> ${COUTFILE}.cc) && NEEDSTERM="true"
@@ -649,7 +649,7 @@ EOF
     $(echo "}" >> ${COUTFILE}.cc)
   fi
 
-  ERRORS=$($CXX ${GCC_FLAGS} ${BITS32} -Dmain="APP_TMP_MAIN_main" -c -o ${OOUTFILE}.o ${COUTFILE}.cc 2>&1)
+  ERRORS=$(timeout 10s $CXX ${GCC_FLAGS} ${BITS32} -Dmain="APP_TMP_MAIN_main" -c -o ${OOUTFILE}.o ${COUTFILE}.cc 2>&1)
 
   if [ "$ERRORS" ]; then
     BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -o -E -m 1 "(warning\:|error\:).*" )
@@ -662,7 +662,7 @@ EOF
 
   write_ptrace_watcher ${COUTFILE}
 
-  ERRORS=$($CXX ${BITS32} -fpermissive -w -o $AOUTFILE ${COUTFILE}.cc ${OOUTFILE}.o 2>&1 )
+  ERRORS=$($CXX ${GCC_FLAGS} ${BITS32} -fpermissive -w -o $AOUTFILE ${COUTFILE}.cc ${OOUTFILE}.o 2>&1 )
   if [ "$ERRORS" -a $? -eq 1 ]; then
     BADSTUFF=$(echo "$ERRORS" | $GREP_BIN -E -m 1 "(warning\:|error\:|undefined).*" )
 

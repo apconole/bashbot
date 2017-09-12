@@ -86,7 +86,7 @@ write_ptrace_watcher() {
 
 using namespace std;
 
-extern int APP_TMP_MAIN_main();
+extern int APP_TMP_MAIN_main(int, char **);
 
 struct syscalls_blocked 
 {
@@ -192,7 +192,7 @@ int main(int argc, char *argv[])
     SPY_SYSCALL(__NR_open, WHITELIST_FILENAME);
 
     if ( argc > 1 )
-      return APP_TMP_MAIN_main();
+      return APP_TMP_MAIN_main(argc, argv);
 
     setsid();
 
