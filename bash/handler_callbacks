@@ -558,8 +558,9 @@ run_ticker(){
   shift 2
 
   [ ! "$1" ] && message_post $CHANNEL "Requires a ticker symbol"
-  TICKERNAME=$($CURL_BIN -s "https://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=n")
-  TICKERPRICE=$($CURL_BIN -s "https://download.finance.yahoo.com/d/quotes.csv?s=${1}&f=l1")
+  DATA=$($CURL_BIN -s "finance.google.com/finance?q=$1" | tr -d '\n')
+  TICKERNAME=$(echo $DATA | egrep -o 'meta itemprop="name"\s+content="[a-zA-Z0-9 ,\.]+' | cut -d\" -f4)
+  TICKERPRICE=$(echo $DATA | egrep -o 'meta itemprop="price"\s+content="[0-9\.]+' | cut -d\" -f4)
 
   message_post $CHANNEL "Ticker [ ${TICKERNAME} ] value [ ${TICKERPRICE} ]"
 }
