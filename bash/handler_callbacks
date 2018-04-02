@@ -631,12 +631,12 @@ run_compile(){
     if [ "$USESRETURN" ]; then
       $CAT_BIN >> ${COUTFILE}.cc <<EOF
 
-int main(int argc, char *argv[])
+int main(int argc __attribute__ ((unused)), char *argv[] __attribute__ ((unused)))
 EOF
     else
       $CAT_BIN >> ${COUTFILE}.cc <<EOF
 
-void main(int argc, char *argv[])
+void main(int argc __attribute__ ((unused)), char *argv[] __attribute__ ((unused)))
 EOF
     fi
     [ "${1:0:1}" != "{" ] && $(echo "{" >> ${COUTFILE}.cc) && NEEDSTERM="true"
