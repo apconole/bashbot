@@ -320,7 +320,7 @@ run_randsentence(){
 }
 
 run_joke(){
-    RAND_JOKE=$(curl -s https://icanhazdadjoke.com)
+    RAND_JOKE=$(curl -s https://icanhazdadjoke.com | tr '[:cntrl:]' ' ')
     message_post $2 "$RAND_JOKE"
 }
 
