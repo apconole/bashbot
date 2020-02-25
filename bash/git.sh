@@ -44,7 +44,7 @@ fixes_command() {
         return
     fi
 
-    local SUBJ=$(git --git-dir="$GIT_REPO_ROOT/$REPO/.git" log --format="%s" $SHA)
+    local SUBJ=$(git --git-dir="$GIT_REPO_ROOT/$REPO/.git" log -1 --format="%s" $SHA)
     if [ "X$SUBJ" == "X" ]; then
         message_post $CHANNEL "Sorry, $SENDER, no such sha found."
         return
