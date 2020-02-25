@@ -89,15 +89,33 @@ add_command() {
     local REPO_URL="$4"
 
     setup_git_root
-    pushd "$GIT_REPO_ROOT"
-    if [ -e "$REPO_NAME" ]; then
-        message_post "$SENDER, sorry that exists already"
-    else
-        message_post $CHANNEL "Okay $SENDER, I am cloning $REPO_URL as $REPO_NAME"
-        (git clone "$REPO_URL" "$REPO_NAME" >/dev/null 2>&1 </dev/null; \
-         message_post $CHANNEL "$SENDER, the repo is cloned." )&
+    if [ -e "$GIT_REPO_ROOT/$REPO_NAME" ]; then
+        message_post $CHANNEL "$SENDER, sorry that exists already"
+        return
     fi
-    popd
+
+    (pushd "$GIT_REPO_ROOT"
+     message_post $CHANNEL "Okay $SENDER, I am cloning $REPO_URL as $REPO_NAME"
+     git clone "$REPO_URL" "$REPO_NAME" >/dev/null 2>&1 </dev/null
+     message_post $CHANNEL "$SENDER, '$REPO_NAME' is cloned."
+     popd) &
+}
+
+update_command() {
+    local SENDER="$1"
+    local CHANNEL="$2"
+    local REPO_NAME="$3"
+
+    setup_git_root
+    if [ ! -e "$GIT_REPO_ROOT/$REPO_NAME" ]; then
+        message_post $CHANNEL "$SENDER: no such repo '$REPO_NAME'"
+        return
+    fi
+
+    (pushd "$GIT_REPO_ROOT/$REPO_NAME"
+     git pull >/dev/null 2>&1
+     popd
+     message_post $CHANNEL "$SENDER: pulled for '$REPO_NAME'") &
 }
 
 git_command() {
@@ -110,5 +128,7 @@ git_command() {
         find_command $*
     elif [ "$GIT_CMD" == "fixes" ]; then
         fixes_command $*
+    elif [ "$GIT_CMD" == "update" ]; then
+        update_command $*
     fi
 }
