@@ -79,12 +79,12 @@ karma_command() {
         karma_db_set $CHANNEL $1 $score
     elif [ "$CMD" == "+=" ]; then
         karma_db_get $CHANNEL $1 score
-        newval=$2
+        newval=$(printf '%.0f' "$2")
         score=$((score+newval))
         karma_db_set $CHANNEL $1 $score
     elif [ "$CMD" == "-=" ]; then
         karma_db_get $CHANNEL $1 score
-        newval=$2
+        newval=$(printf '%.0f' "$2")
         score=$((score-newval))
         karma_db_set $CHANNEL $1 $score
     else
