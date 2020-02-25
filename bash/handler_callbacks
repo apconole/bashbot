@@ -320,7 +320,18 @@ run_randsentence(){
 }
 
 run_joke(){
-    RAND_JOKE=$(curl -s https://icanhazdadjoke.com | tr '[:cntrl:]' ' ')
+    SEARCH_TERM=""
+    if [ "$#" -gt 2 ]; then
+        SEARCH_TERM="search?term=$3"
+        RAND_JOKE=$(curl -H "Accept: application/json" -s "https://icanhazdadjoke.com/$SEARCH_TERM" | jq -rc '.results[]' | shuf -n 1 | jq -rc '.joke' | tr '[:cntrl:]' ' ')
+    else
+        RAND_JOKE=$(curl -s https://icanhazdadjoke.com/ | tr '[:cntrl:]' ' ')
+    fi
+
+    if [ "X$RAND_JOKE" = "X" ]; then
+        RAND_JOKE="$1: There's nothing funny about $3"
+    fi
+
     message_post $2 "$RAND_JOKE"
 }
 
