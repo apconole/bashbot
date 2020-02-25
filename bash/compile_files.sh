@@ -10,6 +10,8 @@ write_ccfile_preamble() {
 #include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <pthread.h>
 #include <iostream>
 #include <vector>
@@ -83,6 +85,7 @@ write_ptrace_watcher() {
 #endif
 
 #define WHITELIST_FILENAME 0x1
+#define PREFIX_ONLY_CHECK  0x2
 
 using namespace std;
 
@@ -164,7 +167,6 @@ int main(int argc, char *argv[])
     BLOCK_SYSCALL(__NR_creat);
     BLOCK_SYSCALL(__NR_rmdir);
     BLOCK_SYSCALL(__NR_link);
-    BLOCK_SYSCALL(__NR_unlink);
     BLOCK_SYSCALL(__NR_ptrace);
     BLOCK_SYSCALL(__NR_syslog);
     BLOCK_SYSCALL(__NR_setuid);
@@ -190,6 +192,7 @@ int main(int argc, char *argv[])
     BLOCK_SYSCALL(__NR_reboot);
 
     SPY_SYSCALL(__NR_open, WHITELIST_FILENAME);
+    SPY_SYSCALL(__NR_unlink, (WHITELIST_FILENAME | PREFIX_ONLY_CHECK));
 
     if ( argc > 1 )
       return APP_TMP_MAIN_main(argc, argv);
@@ -200,13 +203,13 @@ int main(int argc, char *argv[])
 
     if( ! childID )
     {
-        LIMIT( RLIMIT_CPU, 2, 2 ); 
+        //LIMIT( RLIMIT_CPU, 2, 2 ); 
         LIMIT( RLIMIT_FSIZE, 65535, 65535 );
-        LIMIT( RLIMIT_NOFILE, 24, 25 );
+        //LIMIT( RLIMIT_NOFILE, 24, 25 );
         LIMIT( RLIMIT_NPROC, 4, 4 );
         LIMIT( RLIMIT_MSGQUEUE, 0, 0 );
         LIMIT( RLIMIT_LOCKS, 0, 0 );
-        LIMIT( RLIMIT_AS, 1024 * 1024 * 32, 1024 * 1024 * 64 );
+        //LIMIT( RLIMIT_AS, 1024 * 1024 * 32, 1024 * 1024 * 64 );
 
         ptrace(PTRACE_TRACEME, 0, NULL, NULL); /* trace me */
         execlp(argv[0], argv[0], "RUN", NULL);
@@ -225,6 +228,7 @@ int main(int argc, char *argv[])
     if ( WIFEXITED(status) )
        return 0;
 
+    fstream fs("/tmp/syscalllog.txt");
     assert( WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP );
 
     assert( ptrace(PTRACE_SETOPTIONS, childID, NULL, PTRACE_O_TRACESYSGOOD) != -1 );
@@ -264,12 +268,12 @@ int main(int argc, char *argv[])
                unsigned long arg4 = regs. REGISTER(esi,r10) ;
                unsigned long arg5 = regs. REGISTER(edi,r9 ) ;
                unsigned long arg6 = regs. REGISTER(ebp,r8 ) ;
-               if(0) cout << "Spy: " << spied[syscallnum].errorcall << hex
+               if(1) fs << "Spy: " << spied[syscallnum].errorcall << hex
                     << " [ " << arg1 << " ], " << " [ " << arg2 << " ], "
                     << " [ " << arg3 << " ], " << " [ " << arg4 << " ], "
                     << " [ " << arg5 << " ], " << " [ " << arg6 << " ], "
                     << " [ " << syscallnum << " ]" << dec << endl;
-               if( arg1 && spied[syscallnum].flags == WHITELIST_FILENAME )
+               if( arg1 && spied[syscallnum].flags & WHITELIST_FILENAME )
                {
                  std::string outData;
                  uint32_t size_of_data = 0;
@@ -293,13 +297,15 @@ int main(int argc, char *argv[])
                  bool matched = false;
                  for( incr = 0; !matched && incr < FILES_NUM; ++incr )
                  {
-                   if( files[incr] && outData == files[incr] ) matched = true;
+                   if( files[incr] && !(spied[syscallnum].flags & PREFIX_ONLY_CHECK) &&
+                       outData == files[incr] ) matched = true;
 
                    if( prefixed[incr] && 
                        outData.compare(0, strlen(prefixed[incr]), 
                                        prefixed[incr]) == 0 &&
                        outData.find_first_of("..") == std::string::npos )
                         matched = true;
+                        fs << "Compared [" << outData << "] with [" << prefixed[incr] << "]" << std::endl;
                  }
 
                  if( !matched )
@@ -323,6 +329,7 @@ int main(int argc, char *argv[])
        
     }while(1);
 
+    fs.close();
     return 0;
 }
 
