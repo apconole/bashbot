@@ -190,7 +190,7 @@ run_weather(){
 
   CITY=$(echo "$WEATHER_REPORT" | head -n1 | $SED_BIN -e 's@^Weather report: @@')
   CONDITION=$(echo "$WEATHER_REPORT" | head -n 3 | tail -n1 | $SED_BIN -e 's@^.*\[0m\s*@@')
-  TEMP=$(echo "$WEATHER_REPORT" | head -n4 | tail -n1 | $SED_BIN -e "s,\x1B\[[0-9;]*[a-zA-Z],,g" | $GREP_BIN -E -o '[0-9]+(-[0-9]+)?\s*°(F|C|K)')
+  TEMP=$(echo "$WEATHER_REPORT" | head -n4 | tail -n1 | $SED_BIN -e "s,\x1B\[[0-9;]*[a-zA-Z],,g" | $GREP_BIN -E -o -- '-?[0-9]+(-*[0-9]+)?\s*°(F|C|K)')
 
   [ "$CITY" ] && message_post $RESPOND "For [ $CITY ], temp [ $TEMP ], and [ $CONDITION ]" && return
 
